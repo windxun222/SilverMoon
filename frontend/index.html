@@ -116,6 +116,12 @@ function wavenc(samples){
  return new Blob([b],{type:'audio/wav'});
 }
 var _acnt=0;
+var _sentChunks=[],_silentCount=0,_isRecording=false;
+async function sendIfComplete(){
+ if(!_sentChunks.length)return;
+ var w=wavenc(_sentChunks);_sentChunks=[];status('t');
+ try{var r=await fetch('/asr',{method:'POST',body:w}),d=await r.json();if(d.text&&d.text.trim()){var f=camFrame();query(d.text.trim(),f)}}catch(e){}
+}
 async function astart(){
  astop();if(!auto||mut)return;
  try{
@@ -123,13 +129,27 @@ async function astart(){
   if(actx.state!=='running')await actx.resume();
   astream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}});
   var src=actx.createMediaStreamSource(astream),proc=actx.createScriptProcessor(4096,1,1);
-  achunks=[];_acnt=0;src.connect(proc);proc.connect(actx.destination);
-  proc.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0);_acnt+=d.length;for(var i=0;i<d.length;i++)achunks.push(Math.round(d[i]*32767))};
+  achunks=[];_sentChunks=[];_silentCount=0;_isRecording=false;src.connect(proc);proc.connect(actx.destination);
+  proc.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0);for(var i=0;i<d.length;i++)achunks.push(Math.round(d[i]*32767))};
   status('l');
   atimer=setInterval(async function(){
-   if(!achunks.length)return;var hasSp=hasSpeech(achunks);if(!hasSp){achunks=[];return}var w=wavenc(achunks);achunks=[];status('t');
-   try{var r=await fetch('/asr',{method:'POST',body:w}),d=await r.json();if(d.text&&d.text.trim()){var f=camFrame();query(d.text.trim(),f)}}catch(e){}
-  },4000);
+   if(!achunks.length)return;
+   var hasSp=hasSpeech(achunks);
+   if(hasSp){
+    // Speech detected: accumulate into _sentChunks, reset silence counter
+    for(var i=0;i<achunks.length;i++)_sentChunks.push(achunks[i]);
+    achunks=[];_silentCount=0;_isRecording=true;
+   }else if(_isRecording){
+    // Silence while recording: check if enough silence to send
+    _silentCount++;
+    if(_silentCount>3){// 4*0.5=2s silence threshold
+     sendIfComplete();_isRecording=false;
+    }
+    achunks=[];
+   }else{
+    achunks=[];// Not recording, just discard
+   }
+  },500);
  }catch(e){msg('s','Mic error: '+e.message);status('e')}
 }
 function astop(){if(atimer){clearInterval(atimer);atimer=null}if(actx){try{actx.close()}catch(e){}actx=null}if(astream){astream.getTracks().forEach(function(t){t.stop()});astream=null}achunks=[]}
