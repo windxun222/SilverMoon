@@ -26,16 +26,79 @@ let lastFrameCaptureTs = 0;
 let visionTimer = null;
 let _autoInterval = null;
 
-// ===== AUTO MODE: MediaRecorder + backend ASR =====
-let _mediaRecorder = null;
-let _audioChunks = [];
+// ===== AUTO MODE: AudioContext + PCM-WAV + backend ASR =====
+let _audioCtx = null;
+let _audioStream = null;
 let _asrTimer = null;
+let _pcmChunks = [];
+const ASR_SAMPLE_RATE = 16000;
+const ASR_CHUNK_MS = 4000;
+
+function encodeWAV(samples) {
+  const numSamples = samples.length;
+  const buf = new ArrayBuffer(44 + numSamples * 2);
+  const v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + numSamples * 2, true); w(8, 'WAVE');
+  w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, ASR_SAMPLE_RATE, true); v.setUint32(28, ASR_SAMPLE_RATE * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, numSamples * 2, true);
+  for (let i = 0; i < numSamples; i++) {
+    const s = Math.max(-32768, Math.min(32767, samples[i]));
+    v.setInt16(44 + i * 2, s, true);
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+}
 
 async function startAutoASR() {
   stopAutoASR();
   if (!autoMode || muted) return;
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _audioStream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: ASR_SAMPLE_RATE, channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: ASR_SAMPLE_RATE });
+    const source = _audioCtx.createMediaStreamSource(_audioStream);
+    const processor = _audioCtx.createScriptProcessor(4096, 1, 1);
+    _pcmChunks = [];
+    source.connect(processor);
+    processor.connect(_audioCtx.destination);
+    processor.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      const samples = new Int16Array(input.length);
+      for (let i = 0; i < input.length; i++) samples[i] = input[i] * 32767;
+      for (let i = 0; i < samples.length; i++) _pcmChunks.push(samples[i]);
+    };
+    setStatus("listening");
+    console.log("[auto] AudioContext ASR started");
+    _asrTimer = setInterval(async () => {
+      if (_pcmChunks.length === 0) return;
+      const wav = encodeWAV(_pcmChunks);
+      _pcmChunks = [];
+      setStatus("thinking");
+      try {
+        const resp = await fetch("/asr", { method: "POST", body: wav });
+        const data = await resp.json();
+        if (data.text && data.text.trim()) {
+          console.log("[auto] ASR:", data.text);
+          sendQuery(data.text.trim());
+        }
+      } catch(e) { console.warn("[auto] ASR fetch failed:", e); }
+    }, ASR_CHUNK_MS);
+  } catch(e) {
+    console.warn("[auto] Audio failed:", e);
+    addMessage("system", "麦克风不可用：" + e.message);
+    setStatus("error");
+  }
+}
+
+function stopAutoASR() {
+  if (_asrTimer) { clearInterval(_asrTimer); _asrTimer = null; }
+  if (_audioCtx) { try { _audioCtx.close(); } catch(_) {} _audioCtx = null; }
+  if (_audioStream) { _audioStream.getTracks().forEach(t => t.stop()); _audioStream = null; }
+  _pcmChunks = [];
+}
+
+);
     _mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
     _audioChunks = [];
     _mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) _audioChunks.push(e.data); };
