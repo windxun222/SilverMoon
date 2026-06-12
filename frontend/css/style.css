@@ -89,6 +89,7 @@ html, body {
 
 .toggle-btn { width: 52px; height: 52px; background: rgba(255,255,255,0.08); border: 1.5px solid rgba(255,255,255,0.2); }
 .toggle-btn.on { background: rgba(76,175,80,0.35); border-color: rgba(76,175,80,0.6); }
+.toggle-btn.off { background: rgba(244,67,54,0.25); border-color: rgba(244,67,54,0.4); }
 .toggle-btn .btn-icon { font-size: 18px; }
 .toggle-btn .btn-label { font-size: 8px; color: rgba(255,255,255,0.7); }
 

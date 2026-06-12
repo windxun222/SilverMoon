@@ -18,11 +18,13 @@ const btnTalk = document.getElementById("btn-talk");
 const btnVision = document.getElementById("btn-vision");
 const btnAuto = document.getElementById("btn-auto");
 const btnMute = document.getElementById("btn-mute");
+const btnSpeaker = document.getElementById("btn-speaker");
 const cameraIndicator = document.getElementById("camera-indicator");
 const cameraIcon = document.getElementById("camera-icon");
 
 let autoMode = false;
 let visionMode = false;
+let speakerOn = true;
 let muted = false;
 let lastFrameCaptureTs = 0;
 let visionTimer = null;
@@ -120,6 +122,7 @@ btnTalk.addEventListener("pointercancel", () => { btnTalk.classList.remove("acti
 btnVision.addEventListener("click", toggleVision);
 btnAuto.addEventListener("click", toggleAuto);
 btnMute.addEventListener("click", toggleMute);
+btnSpeaker.addEventListener("click", toggleSpeaker);
 
 async function init() {
   setStatus("connecting");
@@ -140,7 +143,9 @@ async function init() {
       if (data.type === "response") {
         const role = visionMode ? "vision" : "assistant";
         addMessage(role, data.text);
-        speakText(data.text);
+        // Vision responses are silent to avoid spam; user queries get audio
+        const isVision = visionMode;
+        if (speakerOn && !isVision) speakText(data.text);
         if (isConnected()) setStatus(visionMode ? "connected" : "connected");
       } else if (data.type === "error") {
         addMessage("system", "ERR: " + data.detail);
@@ -160,7 +165,29 @@ async function init() {
   setInterval(() => { if (isConnected()) send({ type: "ping" }); }, 30000);
 }
 
-function speakText(text) { if (!window.speechSynthesis) return; window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 1.0; u.pitch = 1.0; const voices = speechSynthesis.getVoices(); const p = voices.find(v => v.lang.startsWith("zh") || v.lang.startsWith("en-US")); if (p) u.voice = p; speechSynthesis.speak(u); }
+function speakText(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 1.0;
+  u.pitch = 1.0;
+  u.lang = "zh-CN";
+  const voices = speechSynthesis.getVoices();
+  const best = voices.find(v => v.lang.startsWith("zh-CN")) ||
+               voices.find(v => v.lang.startsWith("zh")) ||
+               voices.find(v => v.lang.startsWith("en-US")) ||
+               voices[0];
+  if (best) u.voice = best;
+  // Mobile browsers need user gesture context; schedule speak
+  const speak = () => {
+    try { speechSynthesis.speak(u); setStatus("thinking"); u.onend = () => { if (isConnected()) setStatus("connected"); }; }
+    catch(e) { console.warn("TTS error:", e); }
+  };
+  if (speechSynthesis.speaking || speechSynthesis.pending) {
+    speechSynthesis.cancel();
+    setTimeout(speak, 100);
+  } else { speak(); }
+}
 if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); }
 
 // Text input fallback
@@ -178,3 +205,12 @@ if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.onvoi
 
 window.addEventListener("beforeunload", () => { stopVisionLoop(); stopCamera(); releaseMic(); disconnect(); });
 init();
+function toggleSpeaker() {
+  speakerOn = !speakerOn;
+  const btn = document.getElementById("btn-speaker");
+  if (btn) {
+    btn.classList.toggle("on", !speakerOn);
+    btn.querySelector(".btn-icon").textContent = speakerOn ? "\uD83D\uDD0A" : "\uD83D\uDD07";
+  }
+  if (!speakerOn && window.speechSynthesis) window.speechSynthesis.cancel();
+}
