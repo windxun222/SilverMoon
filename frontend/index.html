@@ -128,7 +128,7 @@ async function astart(){
   status('l');
   atimer=setInterval(async function(){
    if(!achunks.length)return;var hasSp=hasSpeech(achunks);if(!hasSp){achunks=[];return}var w=wavenc(achunks);achunks=[];status('t');
-   try{var r=await fetch('/asr',{method:'POST',body:w}),d=await r.json();if(d.text&&d.text.trim())query(d.text.trim())}catch(e){}
+   try{var r=await fetch('/asr',{method:'POST',body:w}),d=await r.json();if(d.text&&d.text.trim()){var f=camFrame();query(d.text.trim(),f)}}catch(e){}
   },4000);
  }catch(e){msg('s','Mic error: '+e.message);status('e')}
 }
