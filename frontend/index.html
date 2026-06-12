@@ -44,11 +44,11 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 <div id="msgs"><div class="msg s">Ready</div></div>
 <div id="ctls">
 <div id="btns">
-<button class="btn btn-talk" id="bt"><span class="ic">棣冨赋</span><span class="lb">Talk</span></button>
-<button class="btn btn-tog" id="bv"><span class="ic">棣冩啑</span><span class="lb">Vision</span></button>
-<button class="btn btn-tog" id="bs"><span class="ic">棣冩敯</span><span class="lb">Speak</span></button>
-<button class="btn btn-tog" id="ba"><span class="ic">棣冩敡</span><span class="lb">Auto</span></button>
-<button class="btn btn-tog" id="bm"><span class="ic">棣冩敧</span><span class="lb">Mute</span></button>
+<button class="btn btn-talk" id="bt"><span class="ic">妫ｅ啫璧?/span><span class="lb">Talk</span></button>
+<button class="btn btn-tog" id="bv"><span class="ic">妫ｅ啯鍟?/span><span class="lb">Vision</span></button>
+<button class="btn btn-tog" id="bs"><span class="ic">妫ｅ啯鏁?/span><span class="lb">Speak</span></button>
+<button class="btn btn-tog" id="ba"><span class="ic">妫ｅ啯鏁?/span><span class="lb">Auto</span></button>
+<button class="btn btn-tog" id="bm"><span class="ic">妫ｅ啯鏁?/span><span class="lb">Mute</span></button>
 </div>
 <div id="inp"><input type="text" id="ti" placeholder="Type and press Enter..."></div>
 </div>
@@ -105,6 +105,7 @@ function vq(){if(!wsOk()||!vis)return;var f=camFrame();if(!f)return;query('descr
 function vstart(){vstop();if(!vis)return;vtimer=setInterval(function(){if(vis&&wsOk())vq()},4000)}
 function vstop(){if(vtimer){clearInterval(vtimer);vtimer=null}}
 function vtoggle(){vis=!vis;bv.classList.toggle('on',vis);vis?(startCam(),vstart(),vq()):(vstop(),status(wsOk()?'ok':'c'))}
+function hasSpeech(samples){if(!samples||!samples.length)return false;var s=0;for(var i=0;i<samples.length;i++)s+=Math.abs(samples[i]);return(s/samples.length)>300}
 function wavenc(samples){
  var n=samples.length,b=new ArrayBuffer(44+n*2),v=new DataView(b);
  function w(o,s){for(var i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))}
@@ -147,9 +148,9 @@ bt.addEventListener('pointercancel',function(){bt.classList.remove('active')});
 bv.addEventListener('click',function(){vtoggle()});
 function atoggle(){auto=!auto;ba.classList.toggle('on',auto);auto?astart():astop()}
 ba.addEventListener('click',function(){startCam();atoggle()});
-function mtoggle(){mut=!mut;bm.classList.toggle('on',mut);bm.querySelector('.ic').textContent=mut?'棣冩敯':'棣冩敧';if(mut)astop();else if(auto)astart()}
+function mtoggle(){mut=!mut;bm.classList.toggle('on',mut);bm.querySelector('.ic').textContent=mut?'妫ｅ啯鏁?:'妫ｅ啯鏁?;if(mut)astop();else if(auto)astart()}
 bm.addEventListener('click',mtoggle);
-function stoggle(){spk=!spk;bs.classList.toggle('on',!spk);bs.querySelector('.ic').textContent=spk?'棣冩敯':'棣冩敧'}
+function stoggle(){spk=!spk;bs.classList.toggle('on',!spk);bs.querySelector('.ic').textContent=spk?'妫ｅ啯鏁?:'妫ｅ啯鏁?}
 bs.addEventListener('click',stoggle);
 ti.addEventListener('keydown',function(e){if(e.key==='Enter'&&ti.value.trim()){query(ti.value.trim());ti.value=''}});
 wsSetCb({
