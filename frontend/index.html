@@ -44,11 +44,11 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 <div id="msgs"><div class="msg s">Ready</div></div>
 <div id="ctls">
 <div id="btns">
-<button class="btn btn-talk" id="bt"><span class="ic">🎤</span><span class="lb">Talk</span></button>
-<button class="btn btn-tog" id="bv"><span class="ic">👁</span><span class="lb">Vision</span></button>
-<button class="btn btn-tog" id="bs"><span class="ic">🔊</span><span class="lb">Speak</span></button>
-<button class="btn btn-tog" id="ba"><span class="ic">🔄</span><span class="lb">Auto</span></button>
-<button class="btn btn-tog" id="bm"><span class="ic">🔇</span><span class="lb">Mute</span></button>
+<button class="btn btn-talk" id="bt"><span class="ic">馃帳</span><span class="lb">Talk</span></button>
+<button class="btn btn-tog" id="bv"><span class="ic">馃憗</span><span class="lb">Vision</span></button>
+<button class="btn btn-tog" id="bs"><span class="ic">馃攰</span><span class="lb">Speak</span></button>
+<button class="btn btn-tog" id="ba"><span class="ic">馃攧</span><span class="lb">Auto</span></button>
+<button class="btn btn-tog" id="bm"><span class="ic">馃攪</span><span class="lb">Mute</span></button>
 </div>
 <div id="inp"><input type="text" id="ti" placeholder="Type and press Enter..."></div>
 </div>
@@ -117,8 +117,9 @@ function wavenc(samples){
 async function astart(){
  astop();if(!auto||mut)return;
  try{
-  astream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}});
   actx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+  if(actx.state==='suspended')await actx.resume();
+  astream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}});
   var src=actx.createMediaStreamSource(astream),proc=actx.createScriptProcessor(4096,1,1);
   achunks=[];src.connect(proc);proc.connect(actx.destination);
   proc.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0);for(var i=0;i<d.length;i++)achunks.push(Math.round(d[i]*32767))};
@@ -143,9 +144,9 @@ bt.addEventListener('pointercancel',function(){bt.classList.remove('active')});
 bv.addEventListener('click',function(){vtoggle()});
 function atoggle(){auto=!auto;ba.classList.toggle('on',auto);auto?astart():astop()}
 ba.addEventListener('click',function(){startCam();atoggle()});
-function mtoggle(){mut=!mut;bm.classList.toggle('on',mut);bm.querySelector('.ic').textContent=mut?'🔊':'🔇';if(mut)astop();else if(auto)astart()}
+function mtoggle(){mut=!mut;bm.classList.toggle('on',mut);bm.querySelector('.ic').textContent=mut?'馃攰':'馃攪';if(mut)astop();else if(auto)astart()}
 bm.addEventListener('click',mtoggle);
-function stoggle(){spk=!spk;bs.classList.toggle('on',!spk);bs.querySelector('.ic').textContent=spk?'🔊':'🔇'}
+function stoggle(){spk=!spk;bs.classList.toggle('on',!spk);bs.querySelector('.ic').textContent=spk?'馃攰':'馃攪'}
 bs.addEventListener('click',stoggle);
 ti.addEventListener('keydown',function(e){if(e.key==='Enter'&&ti.value.trim()){query(ti.value.trim());ti.value=''}});
 wsSetCb({
