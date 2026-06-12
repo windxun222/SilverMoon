@@ -1,7 +1,7 @@
 ﻿/**
  * SilverMoon App - visual conversation with backend ASR auto mode.
  */
-import { startCamera, captureFrame, stopCamera } from "./camera.js";
+import { startCamera, captureFrame, stopCamera, getAudioStream } from "./camera.js";
 import { requestMic, startListening, stopListening, releaseMic, setCallbacks as setAudioCallbacks } from "./audio.js";
 import { connect, disconnect, send, setCallbacks as setWsCallbacks, isConnected } from "./websocket.js";
 
@@ -61,17 +61,18 @@ function encodeWAV(samples) {
 async function startAutoASR() {
   stopAutoASR(); if(!autoMode||muted)return;
   try {
-    _audioStream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:ASR_RATE,channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    _audioStream = getAudioStream();
+    if (!_audioStream) { console.warn("[auto] No audio track from camera"); return; }
     _audioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:ASR_RATE});
     const src=_audioCtx.createMediaStreamSource(_audioStream), proc=_audioCtx.createScriptProcessor(4096,1,1);
     _pcmChunks=[]; src.connect(proc); proc.connect(_audioCtx.destination);
     proc.onaudioprocess=e=>{const d=e.inputBuffer.getChannelData(0); for(let i=0;i<d.length;i++)_pcmChunks.push(Math.round(d[i]*32767));};
-    setStatus("listening"); console.log("[auto] AudioContext ASR started");
+    setStatus("listening"); console.log("[auto] ASR started from camera audio");
     _autoTimer=setInterval(async()=>{if(_pcmChunks.length===0)return;const w=encodeWAV(_pcmChunks);_pcmChunks=[];setStatus("thinking");
       try{const r=await fetch("/asr",{method:"POST",body:w}),d=await r.json();if(d.text&&d.text.trim()){console.log("[auto] ASR:",d.text);sendQuery(d.text.trim());}}catch(e){console.warn("[auto] ASR fetch:",e);}},ASR_MS);
-  }catch(e){console.warn("[auto] Audio failed:",e);addMessage("system","麦克风不可用："+e.message);setStatus("error");}
+  }catch(e){console.warn("[auto] Audio failed:",e);addMessage("system","音频不可用："+e.message);setStatus("error");}
 }
-function stopAutoASR() { if(_autoTimer){clearInterval(_autoTimer);_autoTimer=null;} if(_audioCtx){try{_audioCtx.close();}catch(_){}_audioCtx=null;} if(_audioStream){_audioStream.getTracks().forEach(t=>t.stop());_audioStream=null;} _pcmChunks=[]; }
+function stopAutoASR() { if(_autoTimer){clearInterval(_autoTimer);_autoTimer=null;} if(_audioCtx){try{_audioCtx.close();}catch(_){}_audioCtx=null;} _pcmChunks=[]; } if(_audioCtx){try{_audioCtx.close();}catch(_){}_audioCtx=null;} if(_audioStream){_audioStream.getTracks().forEach(t=>t.stop());_audioStream=null;} _pcmChunks=[]; }
 
 function toggleAuto() { autoMode=!autoMode; btnAuto.classList.toggle("on",autoMode); autoMode?startAutoASR():stopAutoASR(); }
 function toggleMute() { muted=!muted; btnMute.classList.toggle("on",muted); btnMute.querySelector(".btn-icon").textContent=muted?"\uD83D\uDD0A":"\uD83D\uDD07"; muted?stopAutoASR():(autoMode&&startAutoASR()); }
