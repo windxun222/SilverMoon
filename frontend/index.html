@@ -51,7 +51,7 @@ var WS=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws';
 var dot=document.getElementById('dot'),st=document.getElementById('st');
 var msgs=document.getElementById('msgs'),v=document.getElementById('v'),cv=document.getElementById('c');
 var ba=document.getElementById('ba'),bm=document.getElementById('bm'),ti=document.getElementById('ti');
-var auto=false,mut=false,_sbuf="",_ttsBuf="",_tqueue=[],_tplaying=false,_msgEl=null;
+var auto=false,mut=false,_sbuf="",_ttsBuf="",_tqueue=[],_tplaying=false,_msgEl=null,_ttsGen=0,_curA=null;
 var actx=null,achunks=[],atimer=null,astream=null,camStream=null;
 var ws=null,rcount=0,rtimer=null,onMsgCb=null,onConnCb=null;
 function wsConnect(){
@@ -87,6 +87,7 @@ function camFrame(){
 }
 function camStop(){if(camStream){camStream.getTracks().forEach(function(t){t.stop()});camStream=null}if(v)v.srcObject=null}
 function query(text,img){
+ _ttsGen++;_tqueue=[];_tplaying=false;_ttsBuf="";if(_curA){try{_curA.pause();_curA=null}catch(e){}}if(window.speechSynthesis)window.speechSynthesis.cancel();
  if(!text||!text.trim()||!wsOk())return;
  status('t');msg('u',text.trim());
  var q={type:'query',text:text.trim()};if(img)q.image=img;wsSend(q);
@@ -139,13 +140,13 @@ bm.addEventListener('click',mtoggle);
 ti.addEventListener('keydown',function(e){if(e.key==='Enter'&&ti.value.trim()){query(ti.value.trim());ti.value=''}});
 var _a=null;async function tts(t){if(!t)return;if(!_a){_a=document.createElement('audio');_a.style.display='none';document.body.appendChild(_a)}try{var r=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});if(!r.ok)return;var b=await r.blob(),u=URL.createObjectURL(b);_a.src=u;await _a.play()}catch(e){}}
 async function playTTS(){
- if(_tplaying||!_tqueue.length)return;_tplaying=true;var _pre=null;
- while(_tqueue.length){var t=_tqueue.shift();if(!t||!t.trim())continue;var a;
-  if(_pre){a=_pre;_pre=null}else{try{var r=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});if(!r.ok)continue;var b=await r.blob(),u=URL.createObjectURL(b);a=new Audio(u);a._u=u}catch(e){continue}}
-  if(_tqueue.length){var nt=_tqueue[0];_preTTS(nt).then(function(x){_pre=x})}
-  try{await a.play();await new Promise(function(res,rej){a.onended=res;a.onerror=res})}catch(e){}finally{if(a._u)try{URL.revokeObjectURL(a._u)}catch(e){}}
+ if(_tplaying||!_tqueue.length)return;_tplaying=true;var _pre=null;var gen=_ttsGen;
+ while(_tqueue.length&&gen===_ttsGen){var t=_tqueue.shift();if(!t||!t.trim())continue;var a;
+  if(_pre){a=_pre;_pre=null}else{if(gen!==_ttsGen)break;try{var r=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});if(!r.ok)continue;var b=await r.blob(),u=URL.createObjectURL(b);a=new Audio(u);a._u=u}catch(e){continue}}
+  if(_tqueue.length&&gen===_ttsGen){var nt=_tqueue[0];_preTTS(nt).then(function(x){_pre=x})}
+  if(gen!==_ttsGen)break;_curA=a;try{await a.play();await new Promise(function(res,rej){a.onended=res;a.onerror=res})}catch(e){}finally{_curA=null;if(a._u)try{URL.revokeObjectURL(a._u)}catch(e){}}
  }
- _tplaying=false;
+ _tplaying=false;_curA=null;
 }
 
 function _preTTS(t){return fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})}).then(function(r){if(!r.ok)throw 0;return r.blob()}).then(function(b){var u=URL.createObjectURL(b);var a=new Audio(u);a._u=u;return a})}
