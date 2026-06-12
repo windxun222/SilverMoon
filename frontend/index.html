@@ -14,7 +14,7 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .dot{width:8px;height:8px;border-radius:50%;background:#ffa500;transition:background .3s}
 .dot.ok{background:#4caf50}.dot.listen{background:#2196f3;animation:pulse 1s infinite}.dot.err{background:#f44336}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-#chat{position:absolute;bottom:0;left:0;right:0;z-index:2;display:flex;flex-direction:column;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.3) 80%,transparent 100%);padding-bottom:max(12px,env(safe-area-inset-bottom))}
+#chat{position:absolute;bottom:0;left:0;right:0;z-index:2;display:flex;flex-direction:column;background:linear-gradient(to top,rgba(0,0,0,.85)0%,rgba(0,0,0,.3)80%,transparent 100%);padding-bottom:max(12px,env(safe-area-inset-bottom))}
 #msgs{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:8px;max-height:45vh;min-height:15vh}
 .msg{max-width:85%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-break:break-word;animation:fadeIn .25s}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -44,11 +44,11 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 <div id="msgs"><div class="msg s">Ready</div></div>
 <div id="ctls">
 <div id="btns">
-<button class="btn btn-talk" id="bt"><span class="ic">妫ｅ啫璧?/span><span class="lb">Talk</span></button>
-<button class="btn btn-tog" id="bv"><span class="ic">妫ｅ啯鍟?/span><span class="lb">Vision</span></button>
-<button class="btn btn-tog" id="bs"><span class="ic">妫ｅ啯鏁?/span><span class="lb">Speak</span></button>
-<button class="btn btn-tog" id="ba"><span class="ic">妫ｅ啯鏁?/span><span class="lb">Auto</span></button>
-<button class="btn btn-tog" id="bm"><span class="ic">妫ｅ啯鏁?/span><span class="lb">Mute</span></button>
+<button class="btn btn-talk" id="bt"><span class="ic">*</span><span class="lb">Talk</span></button>
+<button class="btn btn-tog" id="bv"><span class="ic">*</span><span class="lb">Vision</span></button>
+<button class="btn btn-tog" id="bs"><span class="ic">*</span><span class="lb">Speak</span></button>
+<button class="btn btn-tog" id="ba"><span class="ic">*</span><span class="lb">Auto</span></button>
+<button class="btn btn-tog" id="bm"><span class="ic">*</span><span class="lb">Mute</span></button>
 </div>
 <div id="inp"><input type="text" id="ti" placeholder="Type and press Enter..."></div>
 </div>
@@ -121,18 +121,16 @@ async function astart(){
  try{
   actx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
   if(actx.state!=='running')await actx.resume();
-  console.log('[auto] AudioContext state:',actx.state);
   astream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}});
   var src=actx.createMediaStreamSource(astream),proc=actx.createScriptProcessor(4096,1,1);
   achunks=[];_acnt=0;src.connect(proc);proc.connect(actx.destination);
   proc.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0);_acnt+=d.length;for(var i=0;i<d.length;i++)achunks.push(Math.round(d[i]*32767))};
-  status('l');console.log('[auto] Processor running, buffer size: 4096');
+  status('l');
   atimer=setInterval(async function(){
-   console.log('[auto] Samples captured:',_acnt,'chunks:',achunks.length);
-   if(!achunks.length)return;var w=wavenc(achunks);achunks=[];status('t');
-   try{var r=await fetch('/asr',{method:'POST',body:w}),d=await r.json();console.log('[auto] ASR:',d.text);if(d.text&&d.text.trim())query(d.text.trim())}catch(e){}
+   if(!achunks.length)return;var hasSp=hasSpeech(achunks);if(!hasSp){achunks=[];return}var w=wavenc(achunks);achunks=[];status('t');
+   try{var r=await fetch('/asr',{method:'POST',body:w}),d=await r.json();if(d.text&&d.text.trim())query(d.text.trim())}catch(e){}
   },4000);
- }catch(e){console.warn('[auto] Failed:',e);msg('s','Mic error: '+e.message);status('e')}
+ }catch(e){msg('s','Mic error: '+e.message);status('e')}
 }
 function astop(){if(atimer){clearInterval(atimer);atimer=null}if(actx){try{actx.close()}catch(e){}actx=null}if(astream){astream.getTracks().forEach(function(t){t.stop()});astream=null}achunks=[]}
 var _a=null;
@@ -148,9 +146,9 @@ bt.addEventListener('pointercancel',function(){bt.classList.remove('active')});
 bv.addEventListener('click',function(){vtoggle()});
 function atoggle(){auto=!auto;ba.classList.toggle('on',auto);auto?astart():astop()}
 ba.addEventListener('click',function(){startCam();atoggle()});
-function mtoggle(){mut=!mut;bm.classList.toggle('on',mut);bm.querySelector('.ic').textContent=mut?'妫ｅ啯鏁?:'妫ｅ啯鏁?;if(mut)astop();else if(auto)astart()}
+function mtoggle(){mut=!mut;bm.classList.toggle('on',mut);bm.querySelector('.ic').textContent=mut?'ON':'OFF';if(mut)astop();else if(auto)astart()}
 bm.addEventListener('click',mtoggle);
-function stoggle(){spk=!spk;bs.classList.toggle('on',!spk);bs.querySelector('.ic').textContent=spk?'妫ｅ啯鏁?:'妫ｅ啯鏁?}
+function stoggle(){spk=!spk;bs.classList.toggle('on',!spk);bs.querySelector('.ic').textContent=spk?'ON':'OFF'}
 bs.addEventListener('click',stoggle);
 ti.addEventListener('keydown',function(e){if(e.key==='Enter'&&ti.value.trim()){query(ti.value.trim());ti.value=''}});
 wsSetCb({
