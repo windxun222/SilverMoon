@@ -78,7 +78,7 @@ function sendVisionQuery() {
   setStatus("capturing");
   const frame = captureFrame();
   if (!frame) { console.log("[SilverMoon] vision: no frame"); return; }
-  const msg = { type: "query", text: "Describe what you see through the camera in one sentence.", image: frame };
+    const msg = { type: "query", text: "用一句话描述你通过摄像头看到了什么。", image: frame };
   send(msg);
   lastFrameCaptureTs = Date.now();
   showCameraIndicator("Capturing...", true);
