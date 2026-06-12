@@ -25,6 +25,63 @@ let muted = false;
 let lastFrameCaptureTs = 0;
 let visionTimer = null;
 let _autoInterval = null;
+
+// ===== AUTO MODE: MediaRecorder + backend ASR =====
+let _mediaRecorder = null;
+let _audioChunks = [];
+let _asrTimer = null;
+
+async function startAutoASR() {
+  stopAutoASR();
+  if (!autoMode || muted) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+    _audioChunks = [];
+    _mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) _audioChunks.push(e.data); };
+    _mediaRecorder.onstop = async () => {
+      if (_audioChunks.length === 0) return;
+      const blob = new Blob(_audioChunks, { type: "audio/webm" });
+      _audioChunks = [];
+      setStatus("thinking");
+      try {
+        const resp = await fetch("/asr", { method: "POST", body: blob });
+        const data = await resp.json();
+        if (data.text && data.text.trim()) {
+          console.log("[auto] ASR:", data.text);
+          sendQuery(data.text.trim());
+        }
+      } catch(e) { console.warn("[auto] ASR fetch failed:", e); }
+      if (autoMode && !muted) {
+        _asrTimer = setTimeout(() => startAutoASR(), 1000);
+      }
+    };
+    _mediaRecorder.start();
+    setStatus("listening");
+    // Stop recording every 4 seconds to send for ASR
+    _asrTimer = setInterval(() => {
+      if (_mediaRecorder && _mediaRecorder.state === "recording") {
+        _mediaRecorder.stop();
+      }
+    }, 4000);
+    console.log("[auto] MediaRecorder started");
+  } catch(e) {
+    console.warn("[auto] getUserMedia failed:", e);
+    addMessage("system", "麦克风权限被拒绝，自动模式不可用");
+    setStatus("error");
+  }
+}
+
+function stopAutoASR() {
+  if (_asrTimer) { clearTimeout(_asrTimer); clearInterval(_asrTimer); _asrTimer = null; }
+  if (_mediaRecorder && _mediaRecorder.state === "recording") {
+    _mediaRecorder.onstop = null;
+    try { _mediaRecorder.stop(); } catch(_) {}
+    _mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    _mediaRecorder = null;
+  }
+  _audioChunks = [];
+}
 const FRAME_THROTTLE_MS = 1500;
 const VISION_INTERVAL_MS = 4000;
 
@@ -102,7 +159,7 @@ function toggleAuto() {
       if (!isListening) enterListeningMode();
     }, 3000);
   } else {
-    if (_autoInterval) { clearInterval(_autoInterval); _autoInterval = null; }
+    stopAutoASR();
     exitListeningMode();
   }
 }
@@ -112,7 +169,7 @@ function toggleMute() {
   btnMute.querySelector(".btn-icon").textContent = muted ? "\uD83D\uDD0A" : "\uD83D\uDD07";
   if (muted) {
     exitListeningMode();
-    if (_autoInterval) { clearInterval(_autoInterval); _autoInterval = null; }
+    stopAutoASR();
   } else if (autoMode) {
     enterListeningMode();
     _autoInterval = setInterval(() => { if (autoMode && !muted && !isListening) enterListeningMode(); }, 3000);
@@ -203,5 +260,5 @@ async function speakText(text) {
   if (chatPanel) chatPanel.insertBefore(div, chatPanel.firstChild);
 })();
 
-window.addEventListener("beforeunload", () => { stopVisionLoop(); if (_autoInterval) { clearInterval(_autoInterval); _autoInterval = null; } stopCamera(); releaseMic(); disconnect(); });
+window.addEventListener("beforeunload", () => { stopVisionLoop(); stopAutoASR(); stopCamera(); releaseMic(); disconnect(); });
 init();
