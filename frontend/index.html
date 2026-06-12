@@ -3,390 +3,162 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>閾舵湀 - AI 瑙嗚鍔╂墜</title>
-<link rel="stylesheet" href="/static/css/style.css">
+<title>SilverMoon</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#000;color:#f0f0f0}
+#cam{position:absolute;inset:0;z-index:0}
+#cam video{width:100%;height:100%;object-fit:cover}
+#top{position:absolute;top:0;left:0;right:0;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));z-index:1;display:flex;align-items:center;gap:8px}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:20px;background:rgba(0,0,0,.55);font-size:13px;font-weight:500}
+.dot{width:8px;height:8px;border-radius:50%;background:#ffa500;transition:background .3s}
+.dot.ok{background:#4caf50}.dot.listen{background:#2196f3;animation:pulse 1s infinite}.dot.err{background:#f44336}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+#chat{position:absolute;bottom:0;left:0;right:0;z-index:2;display:flex;flex-direction:column;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.3) 80%,transparent 100%);padding-bottom:max(12px,env(safe-area-inset-bottom))}
+#msgs{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:8px;max-height:45vh;min-height:15vh}
+.msg{max-width:85%;padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.5;word-break:break-word;animation:fadeIn .25s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg.u{align-self:flex-end;background:rgba(33,150,243,.3);border:1px solid rgba(33,150,243,.5);color:#e3f2fd}
+.msg.a{align-self:flex-start;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);color:#f5f5f5}
+.msg.s{align-self:center;background:0 0;color:rgba(255,255,255,.5);font-size:12px;text-align:center}
+.msg.v{align-self:flex-start;background:rgba(129,199,132,.15);border:1px solid rgba(129,199,132,.3);color:#c8e6c9;font-size:13px}
+#ctls{padding:8px 16px 12px}
+#btns{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;padding:0 4px}
+.btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:none;border-radius:50%;cursor:pointer;transition:transform .1s,background .3s;touch-action:manipulation}
+.btn:active{transform:scale(.93)}
+.btn-talk{width:68px;height:68px;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.3)}
+.btn-talk.active{background:rgba(244,67,54,.6);border-color:rgba(244,67,54,.8);animation:pulse .8s infinite}
+.btn-talk .ic{font-size:24px}.btn-talk .lb{font-size:8px;color:rgba(255,255,255,.8)}
+.btn-tog{width:52px;height:52px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.2)}
+.btn-tog.on{background:rgba(76,175,80,.35);border-color:rgba(76,175,80,.6)}
+.btn-tog .ic{font-size:18px}.btn-tog .lb{font-size:8px;color:rgba(255,255,255,.7)}
+#inp{margin-top:4px}
+#inp input{width:100%;padding:10px 16px;border-radius:24px;border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.5);color:#fff;font-size:15px;outline:none}
+#msgs::-webkit-scrollbar{width:3px}#msgs::-webkit-scrollbar-track{background:0 0}#msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:3px}
+</style>
 </head>
 <body>
-
-<div id="camera-container">
-  <video id="camera-video" autoplay playsinline muted></video>
-  <canvas id="camera-canvas" hidden></canvas>
-  <div id="camera-overlay">
-    <div id="status-badge">
-      <span id="status-dot"></span>
-      <span id="status-text">鍒濆鍖栦腑...</span>
-    </div>
-    <div id="camera-indicator" class="camera-indicator hidden">
-      <span id="camera-icon">&#x1F4F7;</span>
-      <span id="camera-label">鎽勫儚澶村氨缁?/span>
-    </div>
-  </div>
+<div id="cam"><video id="v" autoplay playsinline muted></video><canvas id="c" hidden></canvas></div>
+<div id="top"><div class="badge"><span class="dot" id="dot"></span><span id="st">connecting...</span></div></div>
+<div id="chat">
+<div id="msgs"><div class="msg s">Ready</div></div>
+<div id="ctls">
+<div id="btns">
+<button class="btn btn-talk" id="bt"><span class="ic">🎤</span><span class="lb">Talk</span></button>
+<button class="btn btn-tog" id="bv"><span class="ic">👁</span><span class="lb">Vision</span></button>
+<button class="btn btn-tog" id="bs"><span class="ic">🔊</span><span class="lb">Speak</span></button>
+<button class="btn btn-tog" id="ba"><span class="ic">🔄</span><span class="lb">Auto</span></button>
+<button class="btn btn-tog" id="bm"><span class="ic">🔇</span><span class="lb">Mute</span></button>
 </div>
-
-<div id="chat-panel">
-  <div id="chat-messages">
-    <div class="chat-msg system-msg">&#x1F44B; 閾舵湀宸插氨缁紝瀵瑰噯鎽勫儚澶磋璇濆惂</div>
-  </div>
-
-  <div id="chat-controls">
-    <div id="interim-text" class="interim-text"></div>
-
-    <div id="button-row">
-      <button id="btn-talk" class="control-btn talk-btn" title="鎸変綇璇磋瘽">
-        <span class="btn-icon">&#x1F3A4;</span>
-        <span class="btn-label">璇磋瘽</span>
-      </button>
-
-      <button id="btn-vision" class="control-btn toggle-btn" title="瑙嗚锛欰I 瑙傚療骞舵弿杩扮敾闈?>
-        <span class="btn-icon">&#x1F441;</span>
-        <span class="btn-label">瑙嗚</span>
-      </button>
-
-      <button id="btn-speaker" class="control-btn toggle-btn" title="璇煶寮€鍏?>
-        <span class="btn-icon">&#x1F50A;</span>
-        <span class="btn-label">璇煶</span>
-      </button>
-
-      <button id="btn-auto" class="control-btn toggle-btn" title="鑷姩鐩戝惉">
-        <span class="btn-icon">&#x1F504;</span>
-        <span class="btn-label">鑷姩</span>
-      </button>
-
-      <button id="btn-mute" class="control-btn toggle-btn" title="闈欓煶楹﹀厠椋?>
-        <span class="btn-icon">&#x1F507;</span>
-        <span class="btn-label">闈欓煶</span>
-      </button>
-    </div>
-  </div>
+<div id="inp"><input type="text" id="ti" placeholder="Type and press Enter..."></div>
 </div>
-
+</div>
 <script>
-/**
- * Camera module - opens rear-facing camera, captures JPEG frames.
- */
-const MAX_FRAME_DIM = 640;
-const JPEG_QUALITY = 0.7;
-
-let videoEl = null;
-let canvasEl = null;
-let stream = null;
-
-async function startCamera() {
-  videoEl = document.getElementById("camera-video");
-  canvasEl = document.getElementById("camera-canvas");
-
-  // Video only first (more reliable on mobile)
-  const constraints = {
-    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-    audio: false
-  };
-
-  try {
-    stream = await navigator.mediaDevices.getUserMedia(constraints);
-  } catch {
-    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-  }
-
-  videoEl.srcObject = stream;
-  await videoEl.play();
-  await new Promise((resolve) => { videoEl.addEventListener("loadeddata", resolve, { once: true }); });
+var WS=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws';
+var dot=document.getElementById('dot'),st=document.getElementById('st');
+var msgs=document.getElementById('msgs'),v=document.getElementById('v'),cv=document.getElementById('c');
+var bt=document.getElementById('bt'),bv=document.getElementById('bv'),bs=document.getElementById('bs');
+var ba=document.getElementById('ba'),bm=document.getElementById('bm'),ti=document.getElementById('ti');
+var auto=false,vis=false,spk=true,mut=false,lfc=0,vtimer=null;
+var actx=null,achunks=[],atimer=null,astream=null,camStream=null;
+var ws=null,rcount=0,rtimer=null,onMsgCb=null,onConnCb=null;
+function wsConnect(){
+ if(ws&&(ws.readyState===WebSocket.OPEN||ws.readyState===WebSocket.CONNECTING))return;
+ ws=new WebSocket(WS);
+ ws.onopen=function(){rcount=0;if(onConnCb)onConnCb(true)};
+ ws.onmessage=function(e){try{var d=JSON.parse(e.data);if(onMsgCb)onMsgCb(d)}catch(x){}};
+ ws.onclose=function(){if(onConnCb)onConnCb(false);if(!rtimer)rtimer=setTimeout(function(){rtimer=null;wsConnect()},2000)};
 }
-
-function captureFrame() {
-  if (!videoEl || !canvasEl || videoEl.readyState < 2) return null;
-  const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
-  if (vw === 0 || vh === 0) return null;
-  let w = vw, h = vh;
-  const scale = Math.min(MAX_FRAME_DIM / Math.max(w, h), 1.0);
-  w = Math.round(w * scale); h = Math.round(h * scale);
-  canvasEl.width = w; canvasEl.height = h;
-  canvasEl.getContext("2d").drawImage(videoEl, 0, 0, w, h);
-  return canvasEl.toDataURL("image/jpeg", JPEG_QUALITY).split(",")[1];
+function wsSend(d){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(d))}
+function wsOk(){return ws&&ws.readyState===WebSocket.OPEN}
+function wsSetCb(cb){onMsgCb=cb.onMsg;onConnCb=cb.onConn}
+function status(s){
+ var m={c:['','connecting...'],ok:['ok','Connected'],l:['listen','Listening'],t:['listen','Thinking'],e:['err','Error']};
+ var cl=m[s]?m[s][0]:'',tx=m[s]?m[s][1]:s;dot.className='dot '+cl;st.textContent=tx;
 }
-
-function stopCamera() {
-  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  if (videoEl) videoEl.srcObject = null;
+function msg(role,text){
+ if(!msgs||!text)return;var el=document.createElement('div');el.className='msg '+role;el.textContent=text;msgs.appendChild(el);msgs.scrollTop=msgs.scrollHeight;
 }
-
-
-/**
- * Audio module - mic access + Web Speech API STT.
- */
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-let recognition = null;
-let isListening = false;
-let micStream = null;
-
-let onInterimResult = null;
-let onFinalResult = null;
-let onStateChange = null;
-
-async function requestMic() {
-  try { micStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch (e) { console.warn("Mic access denied:", e); }
+async function camStart(){
+ if(v)v.srcObject=null;if(camStream){camStream.getTracks().forEach(function(t){t.stop()});camStream=null}
+ try{camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false})}
+ catch(e){camStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false})}
+ v.srcObject=camStream;await v.play();
+ await new Promise(function(r){v.addEventListener('loadeddata',r,{once:true})});
 }
-
-function setCallbacks({ onInterim, onFinal, onState }) {
-  onInterimResult = onInterim;
-  onFinalResult = onFinal;
-  onStateChange = onState;
+function camFrame(){
+ if(!v||!cv||v.readyState<2)return null;
+ var vw=v.videoWidth,vh=v.videoHeight;if(!vw||!vh)return null;
+ var w=vw,h=vh,s=Math.min(640/Math.max(w,h),1);w=Math.round(w*s);h=Math.round(h*s);
+ cv.width=w;cv.height=h;cv.getContext('2d').drawImage(v,0,0,w,h);
+ return cv.toDataURL('image/jpeg',0.7).split(',')[1];
 }
-
-function startListening() {
-  if (!SpeechRecognition) { console.warn("SpeechRecognition not available"); return; }
-  if (isListening) { console.log("[audio] Already listening, skip"); return; }
-  recognition = new SpeechRecognition();
-  recognition.continuous = false;
-  recognition.interimResults = true;
-  recognition.lang = "zh-CN";
-
-  recognition.onresult = (event) => {
-    let interim = "";
-    let final = "";
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const t = event.results[i][0].transcript;
-      if (event.results[i].isFinal) final += t;
-      else interim += t;
-    }
-    console.log("[audio] onresult, interim=", interim, "final=", final);
-    if (interim && onInterimResult) onInterimResult(interim);
-    if (final && onFinalResult) onFinalResult(final);
-  };
-
-  recognition.onerror = (event) => {
-    console.warn("[audio] error:", event.error);
-    stopListening();
-  };
-
-  recognition.onend = () => {
-    console.log("[audio] onend");
-    isListening = false;
-    if (onStateChange) onStateChange(false);
-  };
-
-  recognition.start();
-  isListening = true;
-  if (onStateChange) onStateChange(true);
-  console.log("[audio] recognition started");
+function camStop(){if(camStream){camStream.getTracks().forEach(function(t){t.stop()});camStream=null}if(v)v.srcObject=null}
+function query(text,img){
+ if(!text||!text.trim()||!wsOk())return;
+ status('t');msg('u',text.trim());
+ var q={type:'query',text:text.trim()};if(img)q.image=img;wsSend(q);
 }
-
-function stopListening() {
-  if (recognition) { try { recognition.stop(); } catch (_) {} recognition = null; }
-  isListening = false;
-  console.log("[audio] recognition stopped");
+var camStarted=false;
+function startCam(){if(camStarted)return;camStarted=true;camStart().catch(function(e){console.warn('cam:',e)})}
+function vq(){if(!wsOk()||!vis)return;var f=camFrame();if(!f)return;query('describe what you see in one sentence.',f);lfc=Date.now()}
+function vstart(){vstop();if(!vis)return;vtimer=setInterval(function(){if(vis&&wsOk())vq()},4000)}
+function vstop(){if(vtimer){clearInterval(vtimer);vtimer=null}}
+function vtoggle(){vis=!vis;bv.classList.toggle('on',vis);vis?(startCam(),vstart(),vq()):(vstop(),status(wsOk()?'ok':'c'))}
+function wavenc(samples){
+ var n=samples.length,b=new ArrayBuffer(44+n*2),v=new DataView(b);
+ function w(o,s){for(var i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))}
+ w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);
+ v.setUint16(22,1,true);v.setUint32(24,16000,true);v.setUint32(28,32000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
+ w(36,'data');v.setUint32(40,n*2,true);
+ for(var i=0;i<n;i++)v.setInt16(44+i*2,Math.max(-32768,Math.min(32767,samples[i])),true);
+ return new Blob([b],{type:'audio/wav'});
 }
-
-function releaseMic() {
-  stopListening();
-  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+async function astart(){
+ astop();if(!auto||mut)return;
+ try{
+  astream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}});
+  actx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+  var src=actx.createMediaStreamSource(astream),proc=actx.createScriptProcessor(4096,1,1);
+  achunks=[];src.connect(proc);proc.connect(actx.destination);
+  proc.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0);for(var i=0;i<d.length;i++)achunks.push(Math.round(d[i]*32767))};
+  status('l');
+  atimer=setInterval(async function(){
+   if(!achunks.length)return;var w=wavenc(achunks);achunks=[];status('t');
+   try{var r=await fetch('/asr',{method:'POST',body:w}),d=await r.json();if(d.text&&d.text.trim())query(d.text.trim())}catch(e){}
+  },4000);
+ }catch(e){msg('s','Mic denied. Please allow in browser settings.');status('e')}
 }
-
-
-
-
- /**
-  * WebSocket module 闂?connects to SilverMoon backend,
-  * handles send/receive, auto-reconnect.
-  */
- 
-const WS_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
- const RECONNECT_DELAY_MS = 2000;
- const MAX_RECONNECT_DELAY_MS = 30000;
- 
- let ws = null;
- let reconnectTimer = null;
- let reconnectAttempts = 0;
- 
- let onMessage = null; // (data: object) => void
- let onConnectionChange = null; // (connected: boolean) => void
- 
- function setCallbacks({ onMsg, onConn }) {
-   onMessage = onMsg;
-   onConnectionChange = onConn;
- }
- 
- function connect() {
-   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-     return;
-   }
- 
-   ws = new WebSocket(WS_URL);
- 
-   ws.onopen = () => {
-     console.log("WebSocket connected");
-     reconnectAttempts = 0;
-     if (onConnectionChange) onConnectionChange(true);
-   };
- 
-   ws.onmessage = (event) => {
-     try {
-       const data = JSON.parse(event.data);
-       if (onMessage) onMessage(data);
-     } catch (e) {
-       console.warn("Invalid WS message:", event.data);
-     }
-   };
- 
-   ws.onclose = () => {
-     console.log("WebSocket closed");
-     if (onConnectionChange) onConnectionChange(false);
-     scheduleReconnect();
-   };
- 
-   ws.onerror = (e) => {
-     console.warn("WebSocket error:", e);
-   };
- }
- 
- function send(data) {
-   if (ws && ws.readyState === WebSocket.OPEN) {
-     ws.send(JSON.stringify(data));
-   } else {
-     console.warn("WebSocket not open, dropping message");
-   }
- }
- 
- function disconnect() {
-   if (reconnectTimer) {
-     clearTimeout(reconnectTimer);
-     reconnectTimer = null;
-   }
-   if (ws) {
-     ws.onclose = null; // prevent reconnect
-     ws.close();
-     ws = null;
-   }
- }
- 
- function scheduleReconnect() {
-   if (reconnectTimer) return;
-   const delay = Math.min(
-     RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts),
-     MAX_RECONNECT_DELAY_MS,
-   );
-   reconnectAttempts++;
-   console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
-   reconnectTimer = setTimeout(() => {
-     reconnectTimer = null;
-     connect();
-   }, delay);
- }
- 
- function isConnected() {
-   return ws && ws.readyState === WebSocket.OPEN;
- }
-
-
-/**
- * SilverMoon App - single file, no imports.
- */
-const statusDot = document.getElementById("status-dot");
-const statusText = document.getElementById("status-text");
-const chatMessages = document.getElementById("chat-messages");
-const interimText = document.getElementById("interim-text");
-const btnTalk = document.getElementById("btn-talk");
-const btnVision = document.getElementById("btn-vision");
-const btnAuto = document.getElementById("btn-auto");
-const btnMute = document.getElementById("btn-mute");
-const btnSpeaker = document.getElementById("btn-speaker");
-const cameraIndicator = document.getElementById("camera-indicator");
-const cameraIcon = document.getElementById("camera-icon");
-
-let autoMode = false, visionMode = false, speakerOn = true, muted = false;
-let lastFrameCaptureTs = 0, visionTimer = null;
-let _audioCtx = null, _pcmChunks = [], _autoTimer = null;
-const FRAME_THROTTLE_MS = 1500, VISION_INTERVAL_MS = 4000, ASR_RATE = 16000, ASR_MS = 4000;
-
-function setStatus(s) {
-  const m = { connecting: ["","闂佸搫顦弲婵嬪磻閻愬灚鏆滈悗娑欘焽閳?.."], connected: ["connected","闁诲氦顫夐悺鏇犱焊椤忓棙宕叉繛鎴欏灩缁?], listening: ["listening","闂備胶鍘у畷顒€螞濡ゅ懎绠氬璺侯儑閳?.."], thinking: ["listening","闂備浇顕栭崜姘辨崲閸℃稑鐒垫い鎺嗗亾闁哥啿鏅犻幊?.."], capturing: ["","闂備胶鎳撻崲鑼矓閻㈢绠熸慨姗嗗幘閳?.."], error: ["error","闂傚倷鐒︾€笛囨偡閵娾晩鏁?] };
-  const [c,t] = m[s]||["",s]; if(statusDot)statusDot.className=c; if(statusText)statusText.textContent=t;
+function astop(){if(atimer){clearInterval(atimer);atimer=null}if(actx){try{actx.close()}catch(e){}actx=null}if(astream){astream.getTracks().forEach(function(t){t.stop()});astream=null}achunks=[]}
+var _a=null;
+function ttsInit(){_a=document.createElement('audio');_a.style.display='none';document.body.appendChild(_a)}
+async function tts(t){
+ if(!t)return;if(!_a)ttsInit();
+ try{var r=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});if(!r.ok)return;var b=await r.blob(),u=URL.createObjectURL(b);_a.src=u;await _a.play()}catch(e){}
 }
-function addMessage(role, text) {
-  if(!chatMessages||!text)return; const e=document.createElement("div"); e.className="chat-msg "+role+"-msg"; e.textContent=text; chatMessages.appendChild(e); chatMessages.scrollTop=chatMessages.scrollHeight;
-}
-function setInterim(t) { if(interimText)interimText.textContent=t||""; }
-function showCI(l,c) { if(!cameraIndicator)return; cameraIndicator.classList.remove("hidden"); cameraIndicator.classList.toggle("capturing",!!c); if(cameraIcon)cameraIcon.textContent=c?"婵☆偓绲介崯顖炲箠?:"婵☆偓绲介崯顖炲箠?; const x=cameraIndicator.querySelector("span:last-child"); if(x)x.textContent=l||"闂備胶顢婂Λ鍕偓姘煎墴瀹曟洖顫濋鐐电獮闂佸搫顦伴崹鍫曟儍閹寸姷纾?; }
-
-function sendQuery(text) {
-  if(!text||!text.trim()||!isConnected())return;
-  setStatus("thinking"); addMessage("user",text.trim()); setInterim("");
-  const msg={type:"query",text:text.trim()}, f=captureFrame();
-  if(f){msg.image=f;lastFrameCaptureTs=Date.now();showCI("闁诲骸婀遍…鍫濐嚕閼搁潧鍨旈柛褎顨呯粻?,true);setTimeout(()=>showCI("闂備胶顢婂Λ鍕偓姘煎墴瀹曟洖顫濋鐐电獮闂佸搫顦伴崹鍫曟儍閹寸姷纾?,false),1000);}
-  send(msg);
-}
-
-function sendVisionQuery() { if(!isConnected()||!visionMode)return; const f=captureFrame(); if(!f)return; send({type:"query",text:"闂備焦妞垮鍧楀礉鐎ｎ剛鍗氶柟缁㈠枛閻鏌曟径鍫濆婵☆垰鐗撻弻鐔烘嫚閼碱剛顔戦梺鍓插亽娴滄繈骞忛崨瀛樺亹闁绘垟鏅涙禍鐐叏濡櫣锛嶇紒鐘崇墵閺岀喖鎸婃径濠庝患闂佺瀛╃喊宥咁嚗閸曨厸鍋撻棃娑欏暈缂佺姵鐟╅弻娑㈠箳濡ゅ﹥娈ョ紓浣靛妷閸撴繄绮嬮幒妤€鐒垫い鎺嶈兌閳绘洟鏌涢锝団枔闁?,image:f}); lastFrameCaptureTs=Date.now();showCI("闂備胶鎳撻崲鑼矓閻㈢绠熸慨姗嗗幘閳?..",true); }
-function startVisionLoop() { stopVisionLoop(); if(!visionMode)return; showCI("闂佽崵鍠愰悷銉ノ涘鍫稏閹肩补妲呴崯鍛存煙缂佹ê绗х痪鎯ь煼閺?,false); visionTimer=setInterval(()=>{if(visionMode&&isConnected())sendVisionQuery();},VISION_INTERVAL_MS); }
-function stopVisionLoop() { if(visionTimer){clearInterval(visionTimer);visionTimer=null;} }
-let _camStarted=false; function startCamOnce(){if(_camStarted)return;_camStarted=true;startCamera().then(()=>{if(cameraIndicator)cameraIndicator.classList.remove("hidden");}).catch(e=>console.warn("Camera:",e));}
-function toggleVision() { startCamOnce(); visionMode=!visionMode; btnVision.classList.toggle("on",visionMode); visionMode?(startVisionLoop(),sendVisionQuery()):(stopVisionLoop(),cameraIndicator&&cameraIndicator.classList.add("hidden"),setStatus(isConnected()?"闁诲氦顫夐悺鏇犱焊椤忓棙宕叉繛鎴欏灩缁?:"connecting")); }
-
-function enterLM() { if(muted)return; startListening(); setStatus("listening"); }
-function exitLM() { stopListening(); setStatus(isConnected()?"闁诲氦顫夐悺鏇犱焊椤忓棙宕叉繛鎴欏灩缁?:"connecting"); }
-btnTalk.addEventListener("pointerdown",e=>{e.preventDefault();if(muted)return;btnTalk.classList.add("active");enterLM();});
-btnTalk.addEventListener("pointerup",e=>{e.preventDefault();btnTalk.classList.remove("active");exitLM();});
-btnTalk.addEventListener("pointerleave",()=>{btnTalk.classList.remove("active");exitLM();});
-btnTalk.addEventListener("pointercancel",()=>{btnTalk.classList.remove("active");exitLM();});
-
-function encodeWAV(samples) {
-  const n=samples.length, b=new ArrayBuffer(44+n*2), v=new DataView(b);
-  const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
-  w(0,"RIFF");v.setUint32(4,36+n*2,true);w(8,"WAVE");w(12,"fmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);
-  v.setUint16(22,1,true);v.setUint32(24,ASR_RATE,true);v.setUint32(28,ASR_RATE*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
-  w(36,"data");v.setUint32(40,n*2,true);
-  for(let i=0;i<n;i++)v.setInt16(44+i*2,Math.max(-32768,Math.min(32767,samples[i])),true);
-  return new Blob([b],{type:"audio/wav"});
-}
-async function startAutoASR() {
-  stopAutoASR(); if(!autoMode||muted)return;
-  try {
-    const micStream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: ASR_RATE, channelCount: 1, echoCancellation: true, noiseSuppression: true } });
-    _audioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:ASR_RATE});
-    const src=_audioCtx.createMediaStreamSource(micStream), proc=_audioCtx.createScriptProcessor(4096,1,1);
-    _pcmChunks=[]; src.connect(proc); proc.connect(_audioCtx.destination);
-    proc.onaudioprocess=e=>{const d=e.inputBuffer.getChannelData(0); for(let i=0;i<d.length;i++)_pcmChunks.push(Math.round(d[i]*32767));};
-    setStatus("listening"); console.log("[auto] ASR started");
-    _autoTimer=setInterval(async()=>{if(_pcmChunks.length===0)return;const w=encodeWAV(_pcmChunks);_pcmChunks=[];setStatus("thinking");
-      try{const r=await fetch("/asr",{method:"POST",body:w}),d=await r.json();if(d.text&&d.text.trim()){console.log("[auto] ASR:",d.text);sendQuery(d.text.trim());}}catch(e){console.warn("[auto] ASR:",e);}},ASR_MS);
-  }catch(e){console.warn("[auto] Mic failed:",e);addMessage("system","濠德板€楀▍銏㈢不閹达箑鍌ㄩ柣妯诲墯濡插綊骞栧ǎ顒€鐏紓宥佸亾闂傚倸鍊哥€氼參宕濆鈧敐鐐烘晝閸屾氨顔嗛梺鍦劋濮婂宕″鍫熺叆婵炴垶顭囬悞閿嬨亜閺囥劌澧寸€规洜鍏樻俊鎼佹晜娣囧崬浠搁梺鑽ゅ枑閻熴儵鎮ч崱妞绘瀺闁圭儤姊规刊濂告煕閹炬鎳忛悗顓熺箾閹寸偞鎯勯柛妯恒偢瀹曘垽骞嬮悩鍐差€?);setStatus("error");}
-}
-function stopAutoASR() { if(_autoTimer){clearInterval(_autoTimer);_autoTimer=null;} if(_audioCtx){try{_audioCtx.close();}catch(_){}_audioCtx=null;} _pcmChunks=[]; }
-
-function toggleAuto() { startCamOnce(); autoMode=!autoMode; btnAuto.classList.toggle("on",autoMode); autoMode?startAutoASR():stopAutoASR(); }
-function toggleMute() { muted=!muted; btnMute.classList.toggle("on",muted); btnMute.querySelector(".btn-icon").textContent=muted?"婵☆偓绲介崯顖炲极?:"婵☆偓绲介崯顖炲极?; muted?stopAutoASR():(autoMode&&startAutoASR()); }
-function toggleSpeaker() { speakerOn=!speakerOn; if(btnSpeaker){btnSpeaker.classList.toggle("on",!speakerOn);btnSpeaker.querySelector(".btn-icon").textContent=speakerOn?"婵☆偓绲介崯顖炲极?:"婵☆偓绲介崯顖炲极?;} if(!speakerOn&&window.speechSynthesis)window.speechSynthesis.cancel(); }
-
-btnVision.addEventListener("click",toggleVision);
-btnAuto.addEventListener("click",toggleAuto);
-btnMute.addEventListener("click",toggleMute);
-btnSpeaker.addEventListener("click",toggleSpeaker);
-
-setStatus("connecting");
-setCallbacks({ onInterim:setInterim, onFinal:t=>{setInterim("");if(t&&t.trim())sendQuery(t.trim());}, onState:l=>{setStatus(l?"listening":(isConnected()?"闁诲氦顫夐悺鏇犱焊椤忓棙宕叉繛鎴欏灩缁?:"connecting"));} });
-setWsCallbacks({
-  onMsg: d => {
-    if(d.type==="response"){ addMessage(visionMode?"vision":"assistant",d.text); if(speakerOn&&!visionMode)speakText(d.text); if(isConnected())setStatus("闁诲氦顫夐悺鏇犱焊椤忓棙宕叉繛鎴欏灩缁?); }
-    else if(d.type==="error"){ addMessage("system","闂傚倷鐒︾€笛囨偡閵娾晩鏁? "+d.detail);setStatus("error"); }
-  },
-  onConn: c => { setStatus(c?"闁诲氦顫夐悺鏇犱焊椤忓棙宕叉繛鎴欏灩缁?:"connecting"); if(c&&visionMode)startVisionLoop(); }
+bt.addEventListener('pointerdown',function(e){e.preventDefault();if(mut)return;bt.classList.add('active')});
+bt.addEventListener('pointerup',function(e){e.preventDefault();bt.classList.remove('active')});
+bt.addEventListener('pointerleave',function(){bt.classList.remove('active')});
+bt.addEventListener('pointercancel',function(){bt.classList.remove('active')});
+bv.addEventListener('click',function(){vtoggle()});
+function atoggle(){auto=!auto;ba.classList.toggle('on',auto);auto?astart():astop()}
+ba.addEventListener('click',function(){startCam();atoggle()});
+function mtoggle(){mut=!mut;bm.classList.toggle('on',mut);bm.querySelector('.ic').textContent=mut?'🔊':'🔇';if(mut)astop();else if(auto)astart()}
+bm.addEventListener('click',mtoggle);
+function stoggle(){spk=!spk;bs.classList.toggle('on',!spk);bs.querySelector('.ic').textContent=spk?'🔊':'🔇'}
+bs.addEventListener('click',stoggle);
+ti.addEventListener('keydown',function(e){if(e.key==='Enter'&&ti.value.trim()){query(ti.value.trim());ti.value=''}});
+wsSetCb({
+ onMsg:function(d){
+  if(d.type==='response'){msg(vis?'v':'a',d.text);if(spk&&!vis)tts(d.text);status('ok')}
+  else if(d.type==='error'){msg('s','Error: '+d.detail);status('e')}
+ },
+ onConn:function(c){status(c?'ok':'c')}
 });
-connect();
-setTimeout(() => { if(statusText&&statusText.textContent==='闂佸搫顦弲婵嬪磻閻愬灚鏆滈悗娑欘焽閳?..') setStatus('闁诲氦顫夐悺鏇犱焊椤忓棙宕叉繛鎴欏灩缁?); }, 2000);
-setInterval(() => { if(isConnected())send({type:"ping"}); }, 30000);
-
-
-
-let _a=null; function initTTS(){_a=document.createElement("audio");_a.style.display="none";document.body.appendChild(_a);}
-async function speakText(t){if(!t)return;if(!_a)initTTS();try{const r=await fetch("/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t})});if(!r.ok)return;const b=await r.blob(),u=URL.createObjectURL(b);_a.src=u;_a.onended=()=>{URL.revokeObjectURL(u)};_a.onerror=()=>{URL.revokeObjectURL(u)};await _a.play();}catch(e){console.warn("TTS:",e);}}
-
-!function(){const d=document.createElement("div");d.style.cssText="display:flex;gap:8px;padding:4px 0";const i=document.createElement("input");i.type="text";i.placeholder="闂佸搫顦悧濠囧箰閹间礁鐭楅柛鈩冦仜濡插牓鏌涢銈呮瀺缂佽鲸鐗犻弻銊モ槈濡灝顏┑鐐插级閻楁顭囬鍫熸櫇闁逞屽墲閵囨劙宕掗悙瀵稿姷?..";i.style.cssText="flex:1;padding:8px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.5);color:#fff;font-size:14px;outline:none";i.addEventListener("keydown",e=>{if(e.key==="Enter"&&i.value.trim()){sendQuery(i.value.trim());i.value="";}});d.appendChild(i);const p=document.getElementById("chat-controls");if(p)p.insertBefore(d,p.firstChild);}();
-
-window.addEventListener("beforeunload",()=>{stopVisionLoop();stopAutoASR();stopCamera();releaseMic();disconnect();});
+wsConnect();
+setTimeout(function(){if(st.textContent==='connecting...')status('ok')},3000);
+setInterval(function(){if(wsOk())wsSend({type:'ping'})},30000);
+window.addEventListener('beforeunload',function(){vstop();astop();camStop();if(ws)ws.close()});
 </script>
-
 </body>
 </html>
