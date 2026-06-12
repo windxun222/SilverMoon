@@ -85,7 +85,8 @@ async def tts_endpoint(request: Request):
             return Response(content=audio, media_type="audio/mpeg")
         return Response(content=b"", media_type="audio/mpeg")
     except Exception as e:
-        logger.warning("TTS failed: %s", e)
+        import traceback
+        logger.warning("TTS failed: %s\n%s", e, traceback.format_exc())
         return Response(content=b"", media_type="audio/mpeg")
     finally:
         if mp3_path and _os.path.exists(mp3_path):
@@ -133,14 +134,17 @@ async def websocket_endpoint(ws: WebSocket):
           logger.exception("Image decode failed")
       budget.record_request()
       try:
-        response_text = await ollama.chat(user_text=user_text, image_base64=image_b64, history=history)
+        response_text = ""
+        async for token in ollama.chat_stream(user_text=user_text, image_base64=image_b64, history=history):
+          response_text += token
+          await ws.send_json({"type": "stream_token", "content": token})
+        await ws.send_json({"type": "stream_end"})
       except Exception as e:
         logger.exception("Ollama call failed")
         await ws.send_json({"type": "error", "detail": f"Model error: {e}"})
         continue
       history.append({"role": "user", "content": user_text, "images": [image_b64] if image_b64 else []})
       history.append({"role": "assistant", "content": response_text})
-      await ws.send_json({"type": "response", "text": response_text})
       logger.info("Response sent: %d chars", len(response_text))
       if budget.is_idle(SESSION_IDLE_TIMEOUT_S):
         logger.info("Session idle timeout")
