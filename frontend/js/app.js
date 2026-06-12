@@ -92,7 +92,7 @@ function startVisionLoop() {
 }
 function stopVisionLoop() { if (visionTimer) { clearInterval(visionTimer); visionTimer = null; } }
 
-function toggleVision() { unlockAudio();
+function toggleVision() {
   visionMode = !visionMode;
   btnVision.classList.toggle("on", visionMode);
   if (visionMode) {
@@ -108,8 +108,8 @@ function toggleVision() { unlockAudio();
 function enterListeningMode() { if (muted) return; startListening(); setStatus("listening"); }
 function exitListeningMode() { stopListeningMode(); }
 function stopListeningMode() { stopListening(); setStatus(isConnected() ? "connected" : "connecting"); }
-function toggleAuto() { unlockAudio(); autoMode = !autoMode; btnAuto.classList.toggle("on", autoMode); autoMode ? enterListeningMode() : exitListeningMode(); }
-function toggleMute() { unlockAudio();
+function toggleAuto() { autoMode = !autoMode; btnAuto.classList.toggle("on", autoMode); autoMode ? enterListeningMode() : exitListeningMode(); }
+function toggleMute() {
   muted = !muted; btnMute.classList.toggle("on", muted);
   btnMute.querySelector(".btn-icon").textContent = muted ? "\uD83D\uDD0A" : "\uD83D\uDD07";
   if (muted) exitListeningMode(); else if (autoMode) enterListeningMode();
@@ -165,56 +165,33 @@ async function init() {
   setInterval(() => { if (isConnected()) send({ type: "ping" }); }, 30000);
 }
 
-// --- Voice cache (populated async on mobile) ---
-let _voices = [];
-let _audioUnlocked = false;
+// --- Backend TTS (Windows SpeechSynthesizer, 100% reliable) ---
+let _ttsAudio = null;
 
-function unlockAudio() {
-  if (_audioUnlocked || !window.speechSynthesis) return;
-  // Silent utterance trick: speak empty text to activate audio system
-  const u = new SpeechSynthesisUtterance("");
-  u.volume = 0;
-  u.rate = 1.0;
-  try { speechSynthesis.speak(u); _audioUnlocked = true; console.log("[SilverMoon] Audio unlocked"); }
-  catch(e) { console.warn("[SilverMoon] Audio unlock failed:", e); }
+function initTTS() {
+  _ttsAudio = document.createElement("audio");
+  _ttsAudio.style.display = "none";
+  document.body.appendChild(_ttsAudio);
 }
 
-function getBestVoice() {
-  if (_voices.length === 0) _voices = speechSynthesis.getVoices();
-  // Prefer Chinese, then English, then first available
-  return _voices.find(v => v.lang.startsWith("zh-CN")) ||
-         _voices.find(v => v.lang.startsWith("zh")) ||
-         _voices.find(v => v.lang.startsWith("en-US")) ||
-         _voices[0] || null;
-}
-
-function speakText(text) {
-  if (!window.speechSynthesis || !text) return;
-  if (_voices.length === 0) _voices = speechSynthesis.getVoices();
-  // Cancel any ongoing speech
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.rate = 1.0;
-  u.pitch = 1.0;
-  u.lang = "zh-CN";
-  u.volume = 1.0;
-  const voice = getBestVoice();
-  if (voice) u.voice = voice;
-  u.onstart = () => console.log("[SilverMoon] TTS speaking:", text.substring(0, 30));
-  u.onend = () => { console.log("[SilverMoon] TTS done"); if (isConnected()) setStatus("connected"); };
-  u.onerror = (e) => { console.warn("[SilverMoon] TTS error:", e.error); if (isConnected()) setStatus("connected"); };
-  // Speak directly (no setTimeout needed)
-  try { speechSynthesis.speak(u); }
-  catch(e) { console.warn("[SilverMoon] TTS failed:", e); }
-}
-
-if (window.speechSynthesis) {
-  // Preload voices
-  const loadVoices = () => { _voices = speechSynthesis.getVoices(); console.log("[SilverMoon] Voices loaded:", _voices.length); };
-  loadVoices();
-  speechSynthesis.onvoiceschanged = loadVoices;
-  // Cancel any stuck speech
-  setInterval(() => { if (speechSynthesis.speaking) { /* keep alive */ } else { /* idle */ } }, 5000);
+async function speakText(text) {
+  if (!text) return;
+  if (!_ttsAudio) initTTS();
+  try {
+    const resp = await fetch("/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text })
+    });
+    if (!resp.ok) { console.warn("[SilverMoon] TTS HTTP error:", resp.status); return; }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    _ttsAudio.src = url;
+    _ttsAudio.onended = () => { URL.revokeObjectURL(url); if (isConnected()) setStatus("connected"); };
+    _ttsAudio.onerror = () => { URL.revokeObjectURL(url); if (isConnected()) setStatus("connected"); };
+    await _ttsAudio.play();
+    console.log("[SilverMoon] TTS playing:", text.substring(0, 30));
+  } catch(e) { console.warn("[SilverMoon] TTS failed:", e); }
 }
 
 // Text input fallback
@@ -232,7 +209,7 @@ if (window.speechSynthesis) {
 
 window.addEventListener("beforeunload", () => { stopVisionLoop(); stopCamera(); releaseMic(); disconnect(); });
 init();
-function toggleSpeaker() { unlockAudio();
+function toggleSpeaker() {
   speakerOn = !speakerOn;
   const btn = document.getElementById("btn-speaker");
   if (btn) {

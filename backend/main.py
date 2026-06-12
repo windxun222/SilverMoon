@@ -13,7 +13,8 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 _FRONTEND_DIR = str(_PROJECT_ROOT / "frontend")
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -38,7 +39,34 @@ app = FastAPI(title="SilverMoon", version="0.1.0")
 ollama = OllamaClient()
 
 
-@app.get("/health")
+
+@app.post("/tts")
+async def tts_endpoint(request: Request):
+    """Generate TTS audio from text using Windows SpeechSynthesizer."""
+    import subprocess, tempfile, os as _os
+    data = await request.json()
+    text = (data.get("text") or "").strip()
+    if not text or len(text) > 500:
+        return Response(content=b"", media_type="audio/wav")
+    ps_script = str(_PROJECT_ROOT / "backend" / "tts.ps1")
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        wav_path = tmp.name
+    try:
+        subprocess.run(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-File", ps_script,
+             "-Text", text, "-OutFile", wav_path],
+            timeout=15, capture_output=True
+        )
+        if _os.path.exists(wav_path) and _os.path.getsize(wav_path) > 0:
+            with open(wav_path, "rb") as f:
+                audio_data = f.read()
+            return Response(content=audio_data, media_type="audio/wav")
+        return Response(content=b"", media_type="audio/wav")
+    finally:
+        try: _os.unlink(wav_path)
+        except: pass
+
+@app.get('/health')
 async def health():
     return {"status": "ok", "version": "0.1.0", "model": OLLAMA_MODEL}
 
@@ -155,3 +183,4 @@ if __name__ == "__main__":
         }
         logger.info("HTTPS enabled (TLS 1.2+)")
     uvicorn.run(app, host=HOST, port=PORT, log_level=LOG_LEVEL.lower(), **_ssl_kwargs)
+
