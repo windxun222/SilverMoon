@@ -1,64 +1,66 @@
- <!DOCTYPE html>
- <html lang="zh-CN">
- <head>
- <meta charset="UTF-8">
- <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
- <meta name="apple-mobile-web-app-capable" content="yes">
- <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
- <title>SilverMoon – AI Vision Assistant</title>
- <link rel="stylesheet" href="/static/css/style.css">
- </head>
- <body>
- 
- <!-- ── Camera preview ── -->
- <div id="camera-container">
-   <video id="camera-video" autoplay playsinline muted></video>
-   <canvas id="camera-canvas" hidden></canvas>
-   <div id="camera-overlay">
-     <div id="status-badge">
-       <span id="status-dot"></span>
-       <span id="status-text">Initializing...</span>
-     </div>
-   </div>
- </div>
- 
- <!-- ── Chat panel ── -->
- <div id="chat-panel">
-   <div id="chat-messages">
-     <div class="chat-msg system-msg">👋 SilverMoon is ready. Point your camera and speak.</div>
-   </div>
- 
-   <div id="chat-controls">
-     <!-- Interim speech result -->
-     <div id="interim-text" class="interim-text"></div>
- 
-     <div id="button-row">
-       <!-- Push-to-talk button -->
-       <button id="btn-talk" class="control-btn talk-btn" title="Hold to speak">
-         <span class="btn-icon">🎤</span>
-         <span class="btn-label">Hold to Talk</span>
-       </button>
- 
-       <!-- Auto mode toggle -->
-       <button id="btn-auto" class="control-btn toggle-btn" title="Auto mode: listens continuously">
-         <span class="btn-icon">🔄</span>
-         <span class="btn-label">Auto</span>
-       </button>
- 
-       <!-- Mute toggle -->
-       <button id="btn-mute" class="control-btn toggle-btn" title="Mute microphone">
-         <span class="btn-icon">🔇</span>
-         <span class="btn-label">Mute</span>
-       </button>
-     </div>
-   </div>
- </div>
- 
- <!-- ── Scripts ── -->
- <script type="module" src="/static/js/camera.js"></script>
- <script type="module" src="/static/js/audio.js"></script>
- <script type="module" src="/static/js/websocket.js"></script>
- <script type="module" src="/static/js/app.js"></script>
- 
- </body>
- </html>
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>SilverMoon - AI Vision Assistant</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<div id="camera-container">
+  <video id="camera-video" autoplay playsinline muted></video>
+  <canvas id="camera-canvas" hidden></canvas>
+  <div id="camera-overlay">
+    <div id="status-badge">
+      <span id="status-dot"></span>
+      <span id="status-text">Initializing...</span>
+    </div>
+    <div id="camera-indicator" class="camera-indicator hidden">
+      <span id="camera-icon">&#x1F4F7;</span>
+      <span id="camera-label">Camera ready</span>
+    </div>
+  </div>
+</div>
+
+<div id="chat-panel">
+  <div id="chat-messages">
+    <div class="chat-msg system-msg">&#x1F44B; SilverMoon is ready. Point your camera and speak.</div>
+  </div>
+
+  <div id="chat-controls">
+    <div id="interim-text" class="interim-text"></div>
+
+    <div id="button-row">
+      <button id="btn-talk" class="control-btn talk-btn" title="Hold to speak">
+        <span class="btn-icon">&#x1F3A4;</span>
+        <span class="btn-label">Talk</span>
+      </button>
+
+      <button id="btn-vision" class="control-btn toggle-btn" title="Vision mode: AI watches and describes">
+        <span class="btn-icon">&#x1F441;</span>
+        <span class="btn-label">Vision</span>
+      </button>
+
+      <button id="btn-auto" class="control-btn toggle-btn" title="Auto listen">
+        <span class="btn-icon">&#x1F504;</span>
+        <span class="btn-label">Auto</span>
+      </button>
+
+      <button id="btn-mute" class="control-btn toggle-btn" title="Mute">
+        <span class="btn-icon">&#x1F507;</span>
+        <span class="btn-label">Mute</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/static/js/camera.js"></script>
+<script type="module" src="/static/js/audio.js"></script>
+<script type="module" src="/static/js/websocket.js"></script>
+<script type="module" src="/static/js/app.js"></script>
+
+</body>
+</html>
