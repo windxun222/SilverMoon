@@ -137,9 +137,10 @@ ba.addEventListener('click',function(){camStart().catch(function(e){console.warn
 function mtoggle(){mut=!mut;bm.classList.toggle('on',mut);bm.querySelector('.ic').textContent=mut?'ON':'OFF';if(mut)astop();else if(auto)astart()}
 bm.addEventListener('click',mtoggle);
 ti.addEventListener('keydown',function(e){if(e.key==='Enter'&&ti.value.trim()){query(ti.value.trim());ti.value=''}});
+var _a=null;async function tts(t){if(!t)return;if(!_a){_a=document.createElement('audio');_a.style.display='none';document.body.appendChild(_a)}try{var r=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});if(!r.ok)return;var b=await r.blob(),u=URL.createObjectURL(b);_a.src=u;await _a.play()}catch(e){}}
 wsSetCb({
  onMsg:function(d){
-  if(d.type==='response'){msg('a',d.text);status('ok')}
+  if(d.type==='response'){msg('a',d.text);tts(d.text);status('ok')}
   else if(d.type==='error'){msg('s','Error: '+d.detail);status('e')}
  },
  onConn:function(c){status(c?'ok':'c')}
