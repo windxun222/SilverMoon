@@ -114,21 +114,24 @@ function wavenc(samples){
  for(var i=0;i<n;i++)v.setInt16(44+i*2,Math.max(-32768,Math.min(32767,samples[i])),true);
  return new Blob([b],{type:'audio/wav'});
 }
+var _acnt=0;
 async function astart(){
  astop();if(!auto||mut)return;
  try{
   actx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
-  if(actx.state==='suspended')await actx.resume();
+  if(actx.state!=='running')await actx.resume();
+  console.log('[auto] AudioContext state:',actx.state);
   astream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}});
   var src=actx.createMediaStreamSource(astream),proc=actx.createScriptProcessor(4096,1,1);
-  achunks=[];src.connect(proc);proc.connect(actx.destination);
-  proc.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0);for(var i=0;i<d.length;i++)achunks.push(Math.round(d[i]*32767))};
-  status('l');
+  achunks=[];_acnt=0;src.connect(proc);proc.connect(actx.destination);
+  proc.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0);_acnt+=d.length;for(var i=0;i<d.length;i++)achunks.push(Math.round(d[i]*32767))};
+  status('l');console.log('[auto] Processor running, buffer size: 4096');
   atimer=setInterval(async function(){
+   console.log('[auto] Samples captured:',_acnt,'chunks:',achunks.length);
    if(!achunks.length)return;var w=wavenc(achunks);achunks=[];status('t');
-   try{var r=await fetch('/asr',{method:'POST',body:w}),d=await r.json();if(d.text&&d.text.trim())query(d.text.trim())}catch(e){}
+   try{var r=await fetch('/asr',{method:'POST',body:w}),d=await r.json();console.log('[auto] ASR:',d.text);if(d.text&&d.text.trim())query(d.text.trim())}catch(e){}
   },4000);
- }catch(e){msg('s','Mic denied. Please allow in browser settings.');status('e')}
+ }catch(e){console.warn('[auto] Failed:',e);msg('s','Mic error: '+e.message);status('e')}
 }
 function astop(){if(atimer){clearInterval(atimer);atimer=null}if(actx){try{actx.close()}catch(e){}actx=null}if(astream){astream.getTracks().forEach(function(t){t.stop()});astream=null}achunks=[]}
 var _a=null;
