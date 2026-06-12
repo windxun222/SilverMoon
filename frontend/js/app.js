@@ -91,7 +91,7 @@ async function init() {
   setAudioCallbacks({ onInterim:setInterim, onFinal:t=>{setInterim("");if(t&&t.trim())sendQuery(t.trim());}, onState:l=>{setStatus(l?"listening":(isConnected()?"已连接":"connecting"));} });
   setWsCallbacks({ onMsg:d=>{if(d.type==="response"){addMessage(visionMode?"vision":"assistant",d.text);if(speakerOn&&!visionMode)speakText(d.text);if(isConnected())setStatus("已连接");}else if(d.type==="error"){addMessage("system","错误: "+d.detail);setStatus("error");}}, onConn:c=>{setStatus(c?"已连接":"connecting");if(c&&visionMode)startVisionLoop();} });
   connect();
-  try{await Promise.all([startCamera().catch(e=>console.warn("Camera:",e)),requestMic().catch(e=>console.warn("Mic:",e))]);}catch(e){console.warn("HW:",e);}
+  try{await startCamera().catch(e=>console.warn("Camera:",e));}catch(e){console.warn("Camera init:",e);}
   if(cameraIndicator)cameraIndicator.classList.remove("hidden"); showCI("摄像头就绪",false);
   setInterval(()=>{if(isConnected())send({type:"ping"});},30000);
 }
