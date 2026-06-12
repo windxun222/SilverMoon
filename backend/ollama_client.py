@@ -1,5 +1,6 @@
 ﻿"""Async Ollama client for minicpm-v4.5:8b - vision + chat."""
 
+import json
 import logging
 from typing import Optional
 
@@ -70,6 +71,33 @@ class OllamaClient:
             return content.strip()
         except httpx.HTTPError as e:
             logger.error("Ollama request failed: %s", e)
+            raise
+
+
+    async def chat_stream(self, user_text: str, image_base64=None, history=None):
+        await self._ensure_client()
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        if history:
+            recent = history[-(MAX_HISTORY_TURNS * 2):]
+            messages.extend(recent)
+        user_msg = {"role": "user", "content": user_text}
+        if "中文" not in user_text:
+            user_msg["content"] = user_text + " (请用中文回复)"
+        if image_base64:
+            user_msg["images"] = [image_base64]
+        messages.append(user_msg)
+        payload = {"model": OLLAMA_MODEL, "messages": messages, "stream": True}
+        try:
+            async with self._client.stream("POST", "/api/chat", json=payload) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if line:
+                        data = json.loads(line)
+                        content = data.get("message", {}).get("content", "")
+                        if content:
+                            yield content
+        except Exception as e:
+            logger.error("Ollama stream failed: %s", e)
             raise
 
     async def close(self):
