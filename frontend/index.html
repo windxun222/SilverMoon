@@ -105,7 +105,7 @@ function vq(){if(!wsOk()||!vis)return;var f=camFrame();if(!f)return;query('descr
 function vstart(){vstop();if(!vis)return;vtimer=setInterval(function(){if(vis&&wsOk())vq()},4000)}
 function vstop(){if(vtimer){clearInterval(vtimer);vtimer=null}}
 function vtoggle(){vis=!vis;bv.classList.toggle('on',vis);vis?(startCam(),vstart(),vq()):(vstop(),status(wsOk()?'ok':'c'))}
-function hasSpeech(samples){if(!samples||!samples.length)return false;var s=0;for(var i=0;i<samples.length;i++)s+=Math.abs(samples[i]);return(s/samples.length)>300}
+function hasSpeech(samples){if(!samples||!samples.length)return false;var s=0;for(var i=0;i<samples.length;i++)s+=Math.abs(samples[i]);return(s/samples.length)>50}
 function wavenc(samples){
  var n=samples.length,b=new ArrayBuffer(44+n*2),v=new DataView(b);
  function w(o,s){for(var i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))}
