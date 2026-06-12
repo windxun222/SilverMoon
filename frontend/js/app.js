@@ -124,7 +124,7 @@ function releaseMic() {
 
 
  /**
-  * WebSocket module 鈥?connects to SilverMoon backend,
+  * WebSocket module 闂?connects to SilverMoon backend,
   * handles send/receive, auto-reconnect.
   */
  
@@ -237,30 +237,31 @@ let _audioCtx = null, _pcmChunks = [], _autoTimer = null;
 const FRAME_THROTTLE_MS = 1500, VISION_INTERVAL_MS = 4000, ASR_RATE = 16000, ASR_MS = 4000;
 
 function setStatus(s) {
-  const m = { connecting: ["","连接中..."], connected: ["connected","已连接"], listening: ["listening","聆听中..."], thinking: ["listening","思考中..."], capturing: ["","拍摄中..."], error: ["error","错误"] };
+  const m = { connecting: ["","闁哄鏅濋崑鐐垫暜鐎涙鈻?.."], connected: ["connected","閻庤鐡曠亸顏嗘崲濞戙垹绠?], listening: ["listening","闂佺厧宕Λ妤呭箚婢跺鈻?.."], thinking: ["listening","闂佽鍓氱换鍡涘焵椤掆偓閸熲晠鎳?.."], capturing: ["","闂佺懓鍢茬粔鐢稿箟濮橆厾鈻?.."], error: ["error","闂備焦瀵ч悷銊╊敋?] };
   const [c,t] = m[s]||["",s]; if(statusDot)statusDot.className=c; if(statusText)statusText.textContent=t;
 }
 function addMessage(role, text) {
   if(!chatMessages||!text)return; const e=document.createElement("div"); e.className="chat-msg "+role+"-msg"; e.textContent=text; chatMessages.appendChild(e); chatMessages.scrollTop=chatMessages.scrollHeight;
 }
 function setInterim(t) { if(interimText)interimText.textContent=t||""; }
-function showCI(l,c) { if(!cameraIndicator)return; cameraIndicator.classList.remove("hidden"); cameraIndicator.classList.toggle("capturing",!!c); if(cameraIcon)cameraIcon.textContent=c?"📸":"📷"; const x=cameraIndicator.querySelector("span:last-child"); if(x)x.textContent=l||"摄像头就绪"; }
+function showCI(l,c) { if(!cameraIndicator)return; cameraIndicator.classList.remove("hidden"); cameraIndicator.classList.toggle("capturing",!!c); if(cameraIcon)cameraIcon.textContent=c?"濡絽鍟幊?:"濡絽鍟幊?; const x=cameraIndicator.querySelector("span:last-child"); if(x)x.textContent=l||"闂佺妫勭€氼剟宕曞顓炵窞闁哄鍨堕惃鎴犵磽?; }
 
 function sendQuery(text) {
   if(!text||!text.trim()||!isConnected())return;
   setStatus("thinking"); addMessage("user",text.trim()); setInterim("");
   const msg={type:"query",text:text.trim()}, f=captureFrame();
-  if(f){msg.image=f;lastFrameCaptureTs=Date.now();showCI("已拍摄",true);setTimeout(()=>showCI("摄像头就绪",false),1000);}
+  if(f){msg.image=f;lastFrameCaptureTs=Date.now();showCI("閻庡湱顭堝鑸靛垔閸ф绠?,true);setTimeout(()=>showCI("闂佺妫勭€氼剟宕曞顓炵窞闁哄鍨堕惃鎴犵磽?,false),1000);}
   send(msg);
 }
 
-function sendVisionQuery() { if(!isConnected()||!visionMode)return; const f=captureFrame(); if(!f)return; send({type:"query",text:"用一句话描述你通过摄像头看到了什么。",image:f}); lastFrameCaptureTs=Date.now();showCI("拍摄中...",true); }
-function startVisionLoop() { stopVisionLoop(); if(!visionMode)return; showCI("视觉已开启",false); visionTimer=setInterval(()=>{if(visionMode&&isConnected())sendVisionQuery();},VISION_INTERVAL_MS); }
+function sendVisionQuery() { if(!isConnected()||!visionMode)return; const f=captureFrame(); if(!f)return; send({type:"query",text:"闂佹椿娼块崝瀣博閹绢喖鐭楅柕澶堝妿濡牓鏌熺拠鑼闁割偒浜濋幏鍛存偐閻戔晛浜炬慨妯虹－缁犳牠鏌熼挊澶婎仼闁稿孩纰嶅鍕偓闈涙啞缁犳瑩鏌涢幒妤婃殥缂併劉鍓濈粋鎺楀焵椤掍胶鈻曢柛顐ｇ▓閸?,image:f}); lastFrameCaptureTs=Date.now();showCI("闂佺懓鍢茬粔鐢稿箟濮橆厾鈻?..",true); }
+function startVisionLoop() { stopVisionLoop(); if(!visionMode)return; showCI("闁荤喐鐟ュΛ婊堬綖鎼粹槅鍟呴柟缁樺笧绾惧鏌?,false); visionTimer=setInterval(()=>{if(visionMode&&isConnected())sendVisionQuery();},VISION_INTERVAL_MS); }
 function stopVisionLoop() { if(visionTimer){clearInterval(visionTimer);visionTimer=null;} }
-function toggleVision() { visionMode=!visionMode; btnVision.classList.toggle("on",visionMode); visionMode?(startVisionLoop(),sendVisionQuery()):(stopVisionLoop(),cameraIndicator&&cameraIndicator.classList.add("hidden"),setStatus(isConnected()?"已连接":"connecting")); }
+let _camStarted=false; function startCamOnce(){if(_camStarted)return;_camStarted=true;startCamera().then(()=>{if(cameraIndicator)cameraIndicator.classList.remove("hidden");}).catch(e=>console.warn("Camera:",e));}
+function toggleVision() { startCamOnce(); visionMode=!visionMode; btnVision.classList.toggle("on",visionMode); visionMode?(startVisionLoop(),sendVisionQuery()):(stopVisionLoop(),cameraIndicator&&cameraIndicator.classList.add("hidden"),setStatus(isConnected()?"閻庤鐡曠亸顏嗘崲濞戙垹绠?:"connecting")); }
 
 function enterLM() { if(muted)return; startListening(); setStatus("listening"); }
-function exitLM() { stopListening(); setStatus(isConnected()?"已连接":"connecting"); }
+function exitLM() { stopListening(); setStatus(isConnected()?"閻庤鐡曠亸顏嗘崲濞戙垹绠?:"connecting"); }
 btnTalk.addEventListener("pointerdown",e=>{e.preventDefault();if(muted)return;btnTalk.classList.add("active");enterLM();});
 btnTalk.addEventListener("pointerup",e=>{e.preventDefault();btnTalk.classList.remove("active");exitLM();});
 btnTalk.addEventListener("pointerleave",()=>{btnTalk.classList.remove("active");exitLM();});
@@ -286,13 +287,13 @@ async function startAutoASR() {
     setStatus("listening"); console.log("[auto] ASR started");
     _autoTimer=setInterval(async()=>{if(_pcmChunks.length===0)return;const w=encodeWAV(_pcmChunks);_pcmChunks=[];setStatus("thinking");
       try{const r=await fetch("/asr",{method:"POST",body:w}),d=await r.json();if(d.text&&d.text.trim()){console.log("[auto] ASR:",d.text);sendQuery(d.text.trim());}}catch(e){console.warn("[auto] ASR:",e);}},ASR_MS);
-  }catch(e){console.warn("[auto] Mic failed:",e);addMessage("system","麦克风权限被拒绝，请在浏览器设置中允许");setStatus("error");}
+  }catch(e){console.warn("[auto] Mic failed:",e);addMessage("system","婵°倗娅㈢粻鎴﹀储閻樻剚妲归幖娣灪缂嶁偓闂傚倸瀚崝姗€锝為敃鍌氱闁圭儤姊婚崡婊堟煥濞戞鐒锋い鏇ㄥ墴瀹曠兘濡搁敂淇卞仸闁荤喐鐟ラ悧鍡椻枍閹烘梹濯奸柛鎾楀懏鐎繛鎴炴惄閸樺ジ宕㈤幋鐘冲?);setStatus("error");}
 }
 function stopAutoASR() { if(_autoTimer){clearInterval(_autoTimer);_autoTimer=null;} if(_audioCtx){try{_audioCtx.close();}catch(_){}_audioCtx=null;} _pcmChunks=[]; }
 
-function toggleAuto() { autoMode=!autoMode; btnAuto.classList.toggle("on",autoMode); autoMode?startAutoASR():stopAutoASR(); }
-function toggleMute() { muted=!muted; btnMute.classList.toggle("on",muted); btnMute.querySelector(".btn-icon").textContent=muted?"🔊":"🔇"; muted?stopAutoASR():(autoMode&&startAutoASR()); }
-function toggleSpeaker() { speakerOn=!speakerOn; if(btnSpeaker){btnSpeaker.classList.toggle("on",!speakerOn);btnSpeaker.querySelector(".btn-icon").textContent=speakerOn?"🔊":"🔇";} if(!speakerOn&&window.speechSynthesis)window.speechSynthesis.cancel(); }
+function toggleAuto() { startCamOnce(); autoMode=!autoMode; btnAuto.classList.toggle("on",autoMode); autoMode?startAutoASR():stopAutoASR(); }
+function toggleMute() { muted=!muted; btnMute.classList.toggle("on",muted); btnMute.querySelector(".btn-icon").textContent=muted?"濡絽鍟弫?:"濡絽鍟弫?; muted?stopAutoASR():(autoMode&&startAutoASR()); }
+function toggleSpeaker() { speakerOn=!speakerOn; if(btnSpeaker){btnSpeaker.classList.toggle("on",!speakerOn);btnSpeaker.querySelector(".btn-icon").textContent=speakerOn?"濡絽鍟弫?:"濡絽鍟弫?;} if(!speakerOn&&window.speechSynthesis)window.speechSynthesis.cancel(); }
 
 btnVision.addEventListener("click",toggleVision);
 btnAuto.addEventListener("click",toggleAuto);
@@ -300,23 +301,23 @@ btnMute.addEventListener("click",toggleMute);
 btnSpeaker.addEventListener("click",toggleSpeaker);
 
 setStatus("connecting");
-setCallbacks({ onInterim:setInterim, onFinal:t=>{setInterim("");if(t&&t.trim())sendQuery(t.trim());}, onState:l=>{setStatus(l?"listening":(isConnected()?"已连接":"connecting"));} });
+setCallbacks({ onInterim:setInterim, onFinal:t=>{setInterim("");if(t&&t.trim())sendQuery(t.trim());}, onState:l=>{setStatus(l?"listening":(isConnected()?"閻庤鐡曠亸顏嗘崲濞戙垹绠?:"connecting"));} });
 setWsCallbacks({
   onMsg: d => {
-    if(d.type==="response"){ addMessage(visionMode?"vision":"assistant",d.text); if(speakerOn&&!visionMode)speakText(d.text); if(isConnected())setStatus("已连接"); }
-    else if(d.type==="error"){ addMessage("system","错误: "+d.detail);setStatus("error"); }
+    if(d.type==="response"){ addMessage(visionMode?"vision":"assistant",d.text); if(speakerOn&&!visionMode)speakText(d.text); if(isConnected())setStatus("閻庤鐡曠亸顏嗘崲濞戙垹绠?); }
+    else if(d.type==="error"){ addMessage("system","闂備焦瀵ч悷銊╊敋? "+d.detail);setStatus("error"); }
   },
-  onConn: c => { setStatus(c?"已连接":"connecting"); if(c&&visionMode)startVisionLoop(); }
+  onConn: c => { setStatus(c?"閻庤鐡曠亸顏嗘崲濞戙垹绠?:"connecting"); if(c&&visionMode)startVisionLoop(); }
 });
 connect();
-setTimeout(() => { if(statusText&&statusText.textContent==='连接中...') setStatus('已连接'); }, 2000);
+setTimeout(() => { if(statusText&&statusText.textContent==='闁哄鏅濋崑鐐垫暜鐎涙鈻?..') setStatus('閻庤鐡曠亸顏嗘崲濞戙垹绠?); }, 2000);
 setInterval(() => { if(isConnected())send({type:"ping"}); }, 30000);
 
-startCamera().then(()=>{if(cameraIndicator)cameraIndicator.classList.remove("hidden");showCI("摄像头就绪",false);}).catch(e=>console.warn("Camera:",e));
+
 
 let _a=null; function initTTS(){_a=document.createElement("audio");_a.style.display="none";document.body.appendChild(_a);}
 async function speakText(t){if(!t)return;if(!_a)initTTS();try{const r=await fetch("/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t})});if(!r.ok)return;const b=await r.blob(),u=URL.createObjectURL(b);_a.src=u;_a.onended=()=>{URL.revokeObjectURL(u)};_a.onerror=()=>{URL.revokeObjectURL(u)};await _a.play();}catch(e){console.warn("TTS:",e);}}
 
-!function(){const d=document.createElement("div");d.style.cssText="display:flex;gap:8px;padding:4px 0";const i=document.createElement("input");i.type="text";i.placeholder="输入消息，回车发送...";i.style.cssText="flex:1;padding:8px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.5);color:#fff;font-size:14px;outline:none";i.addEventListener("keydown",e=>{if(e.key==="Enter"&&i.value.trim()){sendQuery(i.value.trim());i.value="";}});d.appendChild(i);const p=document.getElementById("chat-controls");if(p)p.insertBefore(d,p.firstChild);}();
+!function(){const d=document.createElement("div");d.style.cssText="display:flex;gap:8px;padding:4px 0";const i=document.createElement("input");i.type="text";i.placeholder="闁哄鐗婇幐鎼佸矗閸℃せ妲堥柛顐ゅ枍缁辨牠鏌ㄥ☉妯垮婵炲弶鐗楀顏堟晝閳ь剝銇愰崒鐐寸劵?..";i.style.cssText="flex:1;padding:8px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.5);color:#fff;font-size:14px;outline:none";i.addEventListener("keydown",e=>{if(e.key==="Enter"&&i.value.trim()){sendQuery(i.value.trim());i.value="";}});d.appendChild(i);const p=document.getElementById("chat-controls");if(p)p.insertBefore(d,p.firstChild);}();
 
 window.addEventListener("beforeunload",()=>{stopVisionLoop();stopAutoASR();stopCamera();releaseMic();disconnect();});
