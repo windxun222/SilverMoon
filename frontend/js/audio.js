@@ -4,7 +4,6 @@
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 let recognition = null;
-let _recId = 0;
 let isListening = false;
 let micStream = null;
 
@@ -25,15 +24,13 @@ export function setCallbacks({ onInterim, onFinal, onState }) {
 
 export function startListening() {
   if (!SpeechRecognition) { console.warn("SpeechRecognition not available"); return; }
-  if (isListening) return;
-  const myId = ++_recId;
+  if (isListening) { console.log("[audio] Already listening, skip"); return; }
   recognition = new SpeechRecognition();
   recognition.continuous = false;
   recognition.interimResults = true;
   recognition.lang = "zh-CN";
 
   recognition.onresult = (event) => {
-    if (myId !== _recId) return;
     let interim = "";
     let final = "";
     for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -41,18 +38,18 @@ export function startListening() {
       if (event.results[i].isFinal) final += t;
       else interim += t;
     }
+    console.log("[audio] onresult, interim=", interim, "final=", final);
     if (interim && onInterimResult) onInterimResult(interim);
     if (final && onFinalResult) onFinalResult(final);
   };
 
   recognition.onerror = (event) => {
-    if (myId !== _recId) return;
-    console.warn("STT error:", event.error);
+    console.warn("[audio] error:", event.error);
     stopListening();
   };
 
   recognition.onend = () => {
-    if (myId !== _recId) return;
+    console.log("[audio] onend");
     isListening = false;
     if (onStateChange) onStateChange(false);
   };
@@ -60,11 +57,13 @@ export function startListening() {
   recognition.start();
   isListening = true;
   if (onStateChange) onStateChange(true);
+  console.log("[audio] recognition started");
 }
 
 export function stopListening() {
   if (recognition) { try { recognition.stop(); } catch (_) {} recognition = null; }
   isListening = false;
+  console.log("[audio] recognition stopped");
 }
 
 export function releaseMic() {
