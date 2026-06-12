@@ -45,6 +45,9 @@ class OllamaClient:
             messages.extend(recent)
 
         user_msg: dict = {"role": "user", "content": user_text}
+        # Force Chinese output regardless of system prompt compliance
+        if "中文" not in user_text:
+            user_msg["content"] = user_text + " (请用中文回复)"
         if image_base64:
             user_msg["images"] = [image_base64]
         messages.append(user_msg)
