@@ -196,12 +196,14 @@ async function speakText(text) {
 
 
 // ===== Auto mode: silence-detection based, independent of audio.js =====
+
 let _autoRec = null;
 let _autoTimer = null;
 let _autoSilenceTimer = null;
 let _autoLastText = "";
 let _autoLastTime = 0;
 let _autoSent = false;
+let _autoStopping = false;
 const AUTO_SILENCE_MS = 2000;
 const AUTO_MAX_DURATION_MS = 15000;
 
@@ -209,43 +211,46 @@ function startAutoLoop() {
   stopAutoLoop();
   if (!autoMode || muted) return;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { console.warn("[auto] SpeechRecognition unavailable"); return; }
-  _autoLastText = ""; _autoLastTime = Date.now(); _autoSent = false;
+  if (!SR) { console.warn("[auto] SR unavailable"); return; }
+  _autoLastText = ""; _autoLastTime = Date.now(); _autoSent = false; _autoStopping = false;
   const rec = new SR();
   rec.continuous = false;
   rec.interimResults = true;
   rec.lang = "zh-CN";
   rec.onresult = (e) => {
-    let t = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
+    let t = ""; for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
     if (t) { setInterim(t); _autoLastText = t; _autoLastTime = Date.now(); setStatus("listening"); }
   };
   rec.onerror = (e) => { console.warn("[auto] error:", e.error); scheduleAutoRestart(); };
   rec.onend = () => {
+    if (_autoStopping) return;
     if (_autoLastText && !_autoSent) { _autoSent = true; setInterim(""); sendQuery(_autoLastText); }
     scheduleAutoRestart();
   };
   try { rec.start(); _autoRec = rec; setStatus("listening"); console.log("[auto] loop started"); }
   catch(e) { console.warn("[auto] start failed:", e); scheduleAutoRestart(); }
-  // Silence timer: stop recognition if no speech for AUTO_SILENCE_MS
   _autoSilenceTimer = setInterval(() => {
     if (_autoLastText && !_autoSent && Date.now() - _autoLastTime > AUTO_SILENCE_MS) {
+      _autoStopping = true;
+      _autoSent = true;
+      setInterim("");
+      sendQuery(_autoLastText);
       if (_autoRec) { try { _autoRec.stop(); } catch(_) {} }
+      scheduleAutoRestart();
     }
   }, 500);
-  // Max duration: force restart to prevent stuck state
   _autoTimer = setTimeout(() => { if (_autoRec) { try { _autoRec.stop(); } catch(_) {} } }, AUTO_MAX_DURATION_MS);
 }
 
 function scheduleAutoRestart() { stopAutoLoop(); if (autoMode && !muted) setTimeout(startAutoLoop, 1500); }
 
 function stopAutoLoop() {
+  _autoStopping = false;
   if (_autoTimer) { clearTimeout(_autoTimer); _autoTimer = null; }
   if (_autoSilenceTimer) { clearInterval(_autoSilenceTimer); _autoSilenceTimer = null; }
   if (_autoRec) { try { _autoRec.stop(); } catch(_) {} _autoRec = null; }
   _autoSent = false;
 }
-
 // Text input fallback
 (function() {
   const div = document.createElement("div");
