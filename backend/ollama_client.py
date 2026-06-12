@@ -10,7 +10,7 @@ from backend.config import OLLAMA_BASE_URL, OLLAMA_MODEL, MAX_HISTORY_TURNS
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
-    "你是 SilverMoon，一个实时视觉助手。"
+    "你是银月，一个实时视觉助手。"
     "你能看到用户手机摄像头当前的画面。"
     "请用中文回复，简洁自然地描述你看到的物体、人物、文字、颜色、场景。"
     "如果画面模糊或昏暗，简单提一下。每次回复控制在3句话以内。"

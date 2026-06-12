@@ -32,7 +32,7 @@ const FRAME_THROTTLE_MS = 1500;
 const VISION_INTERVAL_MS = 4000;
 
 function setStatus(state) {
-  const map = { connecting: ["", "Connecting..."], connected: ["connected", "Connected"], listening: ["listening", "Listening..."], thinking: ["listening", "Thinking..."], capturing: ["", "Capturing..."], error: ["error", "Error"] };
+  const map = { connecting: ["", "连接中..."], connected: ["已连接", "已连接"], listening: ["listening", "聆听中..."], thinking: ["listening", "思考中..."], capturing: ["", "拍摄中..."], error: ["错误", "错误"] };
   const [cls, text] = map[state] || ["", state];
   if (statusDot) statusDot.className = cls;
   if (statusText) statusText.textContent = text;
@@ -57,7 +57,7 @@ function showCameraIndicator(label, capturing) {
   cameraIndicator.classList.toggle("capturing", !!capturing);
   if (cameraIcon) cameraIcon.textContent = capturing ? "\u{1F4F8}" : "\u{1F4F7}";
   const lbl = cameraIndicator.querySelector("#camera-label, span:last-child");
-  if (lbl) lbl.textContent = label || "Camera ready";
+  if (lbl) lbl.textContent = label || "摄像头就绪";
 }
 
 function sendQuery(text) {
@@ -69,7 +69,7 @@ function sendQuery(text) {
   const msg = { type: "query", text: text.trim() };
   const now = Date.now();
   const frame = captureFrame();
-  if (frame) { msg.image = frame; lastFrameCaptureTs = now; showCameraIndicator("Frame captured", true); setTimeout(() => showCameraIndicator("Camera ready", false), 1000); }
+  if (frame) { msg.image = frame; lastFrameCaptureTs = now; showCameraIndicator("已拍摄", true); setTimeout(() => showCameraIndicator("摄像头就绪", false), 1000); }
   send(msg);
 }
 
@@ -81,13 +81,13 @@ function sendVisionQuery() {
     const msg = { type: "query", text: "用一句话描述你通过摄像头看到了什么。", image: frame };
   send(msg);
   lastFrameCaptureTs = Date.now();
-  showCameraIndicator("Capturing...", true);
+  showCameraIndicator("拍摄中...", true);
 }
 
 function startVisionLoop() {
   stopVisionLoop();
   if (!visionMode) return;
-  showCameraIndicator("Vision active", false);
+  showCameraIndicator("视觉已开启", false);
   visionTimer = setInterval(() => { if (visionMode && isConnected()) sendVisionQuery(); }, VISION_INTERVAL_MS);
 }
 function stopVisionLoop() { if (visionTimer) { clearInterval(visionTimer); visionTimer = null; } }
@@ -101,13 +101,13 @@ function toggleVision() {
   } else {
     stopVisionLoop();
     if (cameraIndicator) cameraIndicator.classList.add("hidden");
-    setStatus(isConnected() ? "connected" : "connecting");
+    setStatus(isConnected() ? "已连接" : "connecting");
   }
 }
 
 function enterListeningMode() { if (muted) return; startListening(); setStatus("listening"); }
 function exitListeningMode() { stopListeningMode(); }
-function stopListeningMode() { stopListening(); setStatus(isConnected() ? "connected" : "connecting"); }
+function stopListeningMode() { stopListening(); setStatus(isConnected() ? "已连接" : "connecting"); }
 function toggleAuto() { autoMode = !autoMode; btnAuto.classList.toggle("on", autoMode); autoMode ? enterListeningMode() : exitListeningMode(); }
 function toggleMute() {
   muted = !muted; btnMute.classList.toggle("on", muted);
@@ -135,7 +135,7 @@ async function init() {
       else console.log("[SilverMoon] onFinal: empty text");
       if (autoMode && !muted) setTimeout(() => { if (autoMode && !muted) startListening(); }, 1500);
     },
-    onState: (listening) => { setStatus(listening ? "listening" : (isConnected() ? "connected" : "connecting")); },
+    onState: (listening) => { setStatus(listening ? "listening" : (isConnected() ? "已连接" : "connecting")); },
   });
   setWsCallbacks({
     onMsg: (data) => {
@@ -146,22 +146,22 @@ async function init() {
         // Vision responses are silent to avoid spam; user queries get audio
         const isVision = visionMode;
         if (speakerOn && !isVision) speakText(data.text);
-        if (isConnected()) setStatus(visionMode ? "connected" : "connected");
-      } else if (data.type === "error") {
-        addMessage("system", "ERR: " + data.detail);
-        setStatus("error");
+        if (isConnected()) setStatus(visionMode ? "已连接" : "已连接");
+      } else if (data.type === "错误") {
+        addMessage("system", "错误: " + data.detail);
+        setStatus("错误");
       }
     },
     onConn: (conn) => {
-      setStatus(conn ? "connected" : "connecting");
-      if (conn && visionMode) { startVisionLoop(); showCameraIndicator("Vision active", false); }
+      setStatus(conn ? "已连接" : "connecting");
+      if (conn && visionMode) { startVisionLoop(); showCameraIndicator("视觉已开启", false); }
     },
   });
   connect();
   try { await Promise.all([startCamera().catch(e => console.warn("Camera:", e)), requestMic().catch(e => console.warn("Mic:", e))]); }
   catch (e) { console.warn("Hardware:", e); }
   if (cameraIndicator) cameraIndicator.classList.remove("hidden");
-  showCameraIndicator("Camera ready", false);
+  showCameraIndicator("摄像头就绪", false);
   setInterval(() => { if (isConnected()) send({ type: "ping" }); }, 30000);
 }
 
@@ -187,8 +187,8 @@ async function speakText(text) {
     const blob = await resp.blob();
     const url = URL.createObjectURL(blob);
     _ttsAudio.src = url;
-    _ttsAudio.onended = () => { URL.revokeObjectURL(url); if (isConnected()) setStatus("connected"); };
-    _ttsAudio.onerror = () => { URL.revokeObjectURL(url); if (isConnected()) setStatus("connected"); };
+    _ttsAudio.onended = () => { URL.revokeObjectURL(url); if (isConnected()) setStatus("已连接"); };
+    _ttsAudio.onerror = () => { URL.revokeObjectURL(url); if (isConnected()) setStatus("已连接"); };
     await _ttsAudio.play();
     console.log("[SilverMoon] TTS playing:", text.substring(0, 30));
   } catch(e) { console.warn("[SilverMoon] TTS failed:", e); }
@@ -199,7 +199,7 @@ async function speakText(text) {
   const div = document.createElement("div");
   div.style.cssText = "display:flex;gap:8px;padding:4px 0";
   const input = document.createElement("input");
-  input.type = "text"; input.placeholder = "Type message and press Enter...";
+  input.type = "text"; input.placeholder = "输入消息，回车发送...";
   input.style.cssText = "flex:1;padding:8px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.3);background:rgba(0,0,0,0.5);color:#fff;font-size:14px;outline:none";
   input.addEventListener("keydown", (e) => { if (e.key === "Enter" && input.value.trim()) { sendQuery(input.value.trim()); input.value = ""; } });
   div.appendChild(input);
