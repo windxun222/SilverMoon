@@ -65,25 +65,32 @@ async def asr_endpoint(request: Request):
 
 @app.post("/tts")
 async def tts_endpoint(request: Request):
-  import subprocess, tempfile
-  data = await request.json()
-  text = (data.get("text") or "").strip()
-  if not text or len(text) > 500:
-    return Response(content=b"", media_type="audio/wav")
-  ps_script = str(_PROJECT_ROOT / "backend" / "tts.ps1")
-  wav_path = ""
-  try:
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-      wav_path = tmp.name
-    subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "-File", ps_script, "-Text", text, "-OutFile", wav_path], timeout=15, capture_output=True)
-    if os.path.exists(wav_path) and os.path.getsize(wav_path) > 0:
-      with open(wav_path, "rb") as f:
-        audio_data = f.read()
-      return Response(content=audio_data, media_type="audio/wav")
-    return Response(content=b"", media_type="audio/wav")
-  finally:
-    try: os.unlink(wav_path)
-    except: pass
+    import tempfile, os as _os, asyncio
+    data = await request.json()
+    text = (data.get("text") or "").strip()
+    if not text or len(text) > 500:
+        return Response(content=b"", media_type="audio/mpeg")
+    voice = data.get("voice", "zh-CN-XiaoyiNeural")
+    rate = data.get("rate", "+20%")
+    mp3_path = ""
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            mp3_path = tmp.name
+        from edge_tts import Communicate
+        tts = Communicate(text, voice, rate=rate)
+        await tts.save(mp3_path)
+        if _os.path.exists(mp3_path) and _os.path.getsize(mp3_path) > 0:
+            with open(mp3_path, "rb") as f:
+                audio = f.read()
+            return Response(content=audio, media_type="audio/mpeg")
+        return Response(content=b"", media_type="audio/mpeg")
+    except Exception as e:
+        logger.warning("TTS failed: %s", e)
+        return Response(content=b"", media_type="audio/mpeg")
+    finally:
+        if mp3_path and _os.path.exists(mp3_path):
+            try: _os.unlink(mp3_path)
+            except: pass
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
