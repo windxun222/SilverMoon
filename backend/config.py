@@ -19,7 +19,7 @@ SESSION_IDLE_TIMEOUT_S: int = 300
 
 # Conversation
 MAX_CONTEXT_IMAGES: int = 3
-MAX_HISTORY_TURNS: int = 8
+MAX_HISTORY_TURNS: int = 20
 
 # Logging
 LOG_LEVEL: str = os.getenv("SILVERMOON_LOG_LEVEL", "INFO")

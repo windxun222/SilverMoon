@@ -138,7 +138,7 @@ async def websocket_endpoint(ws: WebSocket):
         logger.exception("Ollama call failed")
         await ws.send_json({"type": "error", "detail": f"Model error: {e}"})
         continue
-      history.append({"role": "user", "content": user_text})
+      history.append({"role": "user", "content": user_text, "images": [image_b64] if image_b64 else []})
       history.append({"role": "assistant", "content": response_text})
       await ws.send_json({"type": "response", "text": response_text})
       logger.info("Response sent: %d chars", len(response_text))
