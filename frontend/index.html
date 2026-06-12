@@ -21,14 +21,10 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .msg.u{align-self:flex-end;background:rgba(33,150,243,.3);border:1px solid rgba(33,150,243,.5);color:#e3f2fd}
 .msg.a{align-self:flex-start;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);color:#f5f5f5}
 .msg.s{align-self:center;background:0 0;color:rgba(255,255,255,.5);font-size:12px;text-align:center}
-.msg.v{align-self:flex-start;background:rgba(129,199,132,.15);border:1px solid rgba(129,199,132,.3);color:#c8e6c9;font-size:13px}
 #ctls{padding:8px 16px 12px}
 #btns{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;padding:0 4px}
 .btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:none;border-radius:50%;cursor:pointer;transition:transform .1s,background .3s;touch-action:manipulation}
 .btn:active{transform:scale(.93)}
-.btn-talk{width:68px;height:68px;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.3)}
-.btn-talk.active{background:rgba(244,67,54,.6);border-color:rgba(244,67,54,.8);animation:pulse .8s infinite}
-.btn-talk .ic{font-size:24px}.btn-talk .lb{font-size:8px;color:rgba(255,255,255,.8)}
 .btn-tog{width:52px;height:52px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.2)}
 .btn-tog.on{background:rgba(76,175,80,.35);border-color:rgba(76,175,80,.6)}
 .btn-tog .ic{font-size:18px}.btn-tog .lb{font-size:8px;color:rgba(255,255,255,.7)}
@@ -44,9 +40,6 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 <div id="msgs"><div class="msg s">Ready</div></div>
 <div id="ctls">
 <div id="btns">
-<button class="btn btn-talk" id="bt"><span class="ic">*</span><span class="lb">Talk</span></button>
-<button class="btn btn-tog" id="bv"><span class="ic">*</span><span class="lb">Vision</span></button>
-<button class="btn btn-tog" id="bs"><span class="ic">*</span><span class="lb">Speak</span></button>
 <button class="btn btn-tog" id="ba"><span class="ic">*</span><span class="lb">Auto</span></button>
 <button class="btn btn-tog" id="bm"><span class="ic">*</span><span class="lb">Mute</span></button>
 </div>
@@ -57,9 +50,8 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 var WS=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws';
 var dot=document.getElementById('dot'),st=document.getElementById('st');
 var msgs=document.getElementById('msgs'),v=document.getElementById('v'),cv=document.getElementById('c');
-var bt=document.getElementById('bt'),bv=document.getElementById('bv'),bs=document.getElementById('bs');
 var ba=document.getElementById('ba'),bm=document.getElementById('bm'),ti=document.getElementById('ti');
-var auto=false,vis=false,spk=true,mut=false,lfc=0,vtimer=null;
+var auto=false,mut=false,_sbuf="",_ttsBuf="",_tqueue=[],_tplaying=false,_msgEl=null,_ttsGen=0,_curA=null;
 var actx=null,achunks=[],atimer=null,astream=null,camStream=null;
 var ws=null,rcount=0,rtimer=null,onMsgCb=null,onConnCb=null;
 function wsConnect(){
@@ -95,16 +87,11 @@ function camFrame(){
 }
 function camStop(){if(camStream){camStream.getTracks().forEach(function(t){t.stop()});camStream=null}if(v)v.srcObject=null}
 function query(text,img){
+ _ttsGen++;_tqueue=[];_tplaying=false;_ttsBuf="";if(_curA){try{_curA.pause();_curA=null}catch(e){}}if(window.speechSynthesis)window.speechSynthesis.cancel();
  if(!text||!text.trim()||!wsOk())return;
  status('t');msg('u',text.trim());
  var q={type:'query',text:text.trim()};if(img)q.image=img;wsSend(q);
 }
-var camStarted=false;
-function startCam(){if(camStarted)return;camStarted=true;camStart().catch(function(e){console.warn('cam:',e)})}
-function vq(){if(!wsOk()||!vis)return;var f=camFrame();if(!f)return;query('describe what you see in one sentence.',f);lfc=Date.now()}
-function vstart(){vstop();if(!vis)return;vtimer=setInterval(function(){if(vis&&wsOk())vq()},4000)}
-function vstop(){if(vtimer){clearInterval(vtimer);vtimer=null}}
-function vtoggle(){vis=!vis;bv.classList.toggle('on',vis);vis?(startCam(),vstart(),vq()):(vstop(),status(wsOk()?'ok':'c'))}
 function hasSpeech(samples){if(!samples||!samples.length)return false;var s=0;for(var i=0;i<samples.length;i++)s+=Math.abs(samples[i]);return(s/samples.length)>50}
 function wavenc(samples){
  var n=samples.length,b=new ArrayBuffer(44+n*2),v=new DataView(b);
@@ -115,7 +102,12 @@ function wavenc(samples){
  for(var i=0;i<n;i++)v.setInt16(44+i*2,Math.max(-32768,Math.min(32767,samples[i])),true);
  return new Blob([b],{type:'audio/wav'});
 }
-var _acnt=0;
+var _sentChunks=[],_silentCount=0,_isRecording=false;
+async function sendIfComplete(){
+ if(!_sentChunks.length)return;
+ var w=wavenc(_sentChunks);_sentChunks=[];status('t');
+ try{var r=await fetch('/asr',{method:'POST',body:w}),d=await r.json();if(d.text&&d.text.trim()){var f=camFrame();query(d.text.trim(),f)}}catch(e){}
+}
 async function astart(){
  astop();if(!auto||mut)return;
  try{
@@ -123,37 +115,56 @@ async function astart(){
   if(actx.state!=='running')await actx.resume();
   astream=await navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}});
   var src=actx.createMediaStreamSource(astream),proc=actx.createScriptProcessor(4096,1,1);
-  achunks=[];_acnt=0;src.connect(proc);proc.connect(actx.destination);
-  proc.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0);_acnt+=d.length;for(var i=0;i<d.length;i++)achunks.push(Math.round(d[i]*32767))};
+  achunks=[];_sentChunks=[];_silentCount=0;_isRecording=false;src.connect(proc);proc.connect(actx.destination);
+  proc.onaudioprocess=function(e){var d=e.inputBuffer.getChannelData(0);for(var i=0;i<d.length;i++)achunks.push(Math.round(d[i]*32767))};
   status('l');
   atimer=setInterval(async function(){
-   if(!achunks.length)return;var hasSp=hasSpeech(achunks);if(!hasSp){achunks=[];return}var w=wavenc(achunks);achunks=[];status('t');
-   try{var r=await fetch('/asr',{method:'POST',body:w}),d=await r.json();if(d.text&&d.text.trim())query(d.text.trim())}catch(e){}
-  },4000);
+   if(!achunks.length)return;
+   var hasSp=hasSpeech(achunks);
+   if(hasSp){
+    for(var i=0;i<achunks.length;i++)_sentChunks.push(achunks[i]);
+    achunks=[];_silentCount=0;_isRecording=true;
+   }else if(_isRecording){
+    _silentCount++;
+    if(_silentCount>1){sendIfComplete();_isRecording=false;}
+    achunks=[];
+   }else{achunks=[];}
+  },500);
  }catch(e){msg('s','Mic error: '+e.message);status('e')}
 }
 function astop(){if(atimer){clearInterval(atimer);atimer=null}if(actx){try{actx.close()}catch(e){}actx=null}if(astream){astream.getTracks().forEach(function(t){t.stop()});astream=null}achunks=[]}
-var _a=null;
-function ttsInit(){_a=document.createElement('audio');_a.style.display='none';document.body.appendChild(_a)}
-async function tts(t){
- if(!t)return;if(!_a)ttsInit();
- try{var r=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});if(!r.ok)return;var b=await r.blob(),u=URL.createObjectURL(b);_a.src=u;await _a.play()}catch(e){}
-}
-bt.addEventListener('pointerdown',function(e){e.preventDefault();if(mut)return;bt.classList.add('active')});
-bt.addEventListener('pointerup',function(e){e.preventDefault();bt.classList.remove('active')});
-bt.addEventListener('pointerleave',function(){bt.classList.remove('active')});
-bt.addEventListener('pointercancel',function(){bt.classList.remove('active')});
-bv.addEventListener('click',function(){vtoggle()});
 function atoggle(){auto=!auto;ba.classList.toggle('on',auto);auto?astart():astop()}
-ba.addEventListener('click',function(){startCam();atoggle()});
+ba.addEventListener('click',function(){camStart().catch(function(e){console.warn('cam:',e)});atoggle()});
 function mtoggle(){mut=!mut;bm.classList.toggle('on',mut);bm.querySelector('.ic').textContent=mut?'ON':'OFF';if(mut)astop();else if(auto)astart()}
 bm.addEventListener('click',mtoggle);
-function stoggle(){spk=!spk;bs.classList.toggle('on',!spk);bs.querySelector('.ic').textContent=spk?'ON':'OFF'}
-bs.addEventListener('click',stoggle);
 ti.addEventListener('keydown',function(e){if(e.key==='Enter'&&ti.value.trim()){query(ti.value.trim());ti.value=''}});
+var _a=null;async function tts(t){if(!t)return;if(!_a){_a=document.createElement('audio');_a.style.display='none';document.body.appendChild(_a)}try{var r=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});if(!r.ok)return;var b=await r.blob(),u=URL.createObjectURL(b);_a.src=u;await _a.play()}catch(e){}}
+async function playTTS(){
+ if(_tplaying||!_tqueue.length)return;_tplaying=true;var _pre=null;var gen=_ttsGen;
+ while(_tqueue.length&&gen===_ttsGen){var t=_tqueue.shift();if(!t||!t.trim())continue;var a;
+  if(_pre){a=_pre;_pre=null}else{if(gen!==_ttsGen)break;try{var r=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});if(!r.ok)continue;var b=await r.blob(),u=URL.createObjectURL(b);a=new Audio(u);a._u=u}catch(e){continue}}
+  if(_tqueue.length&&gen===_ttsGen){var nt=_tqueue[0];_preTTS(nt).then(function(x){_pre=x})}
+  if(gen!==_ttsGen)break;_curA=a;try{await a.play();await new Promise(function(res,rej){a.onended=res;a.onerror=res})}catch(e){}finally{_curA=null;if(a._u)try{URL.revokeObjectURL(a._u)}catch(e){}}
+ }
+ _tplaying=false;_curA=null;
+}
+
+function _preTTS(t){return fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})}).then(function(r){if(!r.ok)throw 0;return r.blob()}).then(function(b){var u=URL.createObjectURL(b);var a=new Audio(u);a._u=u;return a})}
 wsSetCb({
  onMsg:function(d){
-  if(d.type==='response'){msg(vis?'v':'a',d.text);if(spk&&!vis)tts(d.text);status('ok')}
+  if(d.type==='stream_token'){
+   if(!_msgEl){_msgEl=document.createElement('div');_msgEl.className='msg a';msgs.appendChild(_msgEl)}
+   _sbuf+=d.content;_ttsBuf+=d.content;_msgEl.textContent=_sbuf;msgs.scrollTop=msgs.scrollHeight;
+   // Check for sentence boundary (Chinese and English punctuation)
+   var c=_sbuf.slice(-1);
+   if(c==='.'||c==='!'||c==='?'||c==='。'||c==='！'||c==='？'||c==='；'||c===';'){
+    if(_ttsBuf.trim()){_tqueue.push(_ttsBuf);_ttsBuf="";if(!_tplaying)playTTS()}
+   }
+  }
+  else if(d.type==='stream_end'){
+   if(_ttsBuf.trim()){_tqueue.push(_ttsBuf);_ttsBuf="";if(!_tplaying)playTTS()}
+   _sbuf="";_ttsBuf="";_msgEl=null;status('ok');
+  }
   else if(d.type==='error'){msg('s','Error: '+d.detail);status('e')}
  },
  onConn:function(c){status(c?'ok':'c')}
@@ -161,7 +172,7 @@ wsSetCb({
 wsConnect();
 setTimeout(function(){if(st.textContent==='connecting...')status('ok')},3000);
 setInterval(function(){if(wsOk())wsSend({type:'ping'})},30000);
-window.addEventListener('beforeunload',function(){vstop();astop();camStop();if(ws)ws.close()});
+window.addEventListener('beforeunload',function(){astop();camStop();if(ws)ws.close()});
 </script>
 </body>
 </html>
