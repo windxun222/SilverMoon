@@ -1,5 +1,5 @@
 /**
- * Camera + Mic module - opens camera AND microphone together.
+ * Camera module - opens rear-facing camera, captures JPEG frames.
  */
 const MAX_FRAME_DIM = 640;
 const JPEG_QUALITY = 0.7;
@@ -7,38 +7,26 @@ const JPEG_QUALITY = 0.7;
 let videoEl = null;
 let canvasEl = null;
 let stream = null;
-let audioTrack = null;
 
 export async function startCamera() {
   videoEl = document.getElementById("camera-video");
   canvasEl = document.getElementById("camera-canvas");
 
-  // Request BOTH video and audio in one call - single permission prompt
+  // Video only first (more reliable on mobile)
   const constraints = {
     video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-    audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    audio: false
   };
 
   try {
     stream = await navigator.mediaDevices.getUserMedia(constraints);
   } catch {
-    // Fallback: just camera
     stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
   }
-
-  // Extract audio track for ASR
-  const at = stream.getAudioTracks();
-  audioTrack = at.length > 0 ? at[0] : null;
 
   videoEl.srcObject = stream;
   await videoEl.play();
   await new Promise((resolve) => { videoEl.addEventListener("loadeddata", resolve, { once: true }); });
-}
-
-/** Returns a MediaStream with the audio track for ASR, or null */
-export function getAudioStream() {
-  if (!audioTrack) return null;
-  return new MediaStream([audioTrack]);
 }
 
 export function captureFrame() {
@@ -55,6 +43,5 @@ export function captureFrame() {
 
 export function stopCamera() {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  audioTrack = null;
   if (videoEl) videoEl.srcObject = null;
 }
