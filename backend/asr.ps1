@@ -1,4 +1,3 @@
-# Windows Speech Recognition - outputs UTF-8 text
 param([string]$WavFile)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Speech
