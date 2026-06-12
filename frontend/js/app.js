@@ -133,7 +133,7 @@ async function init() {
       setInterim("");
       if (text && text.trim()) { console.log("[SilverMoon] calling sendQuery"); sendQuery(text.trim()); }
       else console.log("[SilverMoon] onFinal: empty text");
-      if (autoMode && !muted) setTimeout(() => { if (autoMode && !muted) startListening(); }, 1500);
+      if (autoMode && !muted) setTimeout(() => { if (autoMode && !muted) enterListeningMode(); }, 1500);
     },
     onState: (listening) => { setStatus(listening ? "listening" : (isConnected() ? "已连接" : "connecting")); },
   });
