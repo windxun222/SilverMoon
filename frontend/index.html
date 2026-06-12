@@ -125,7 +125,7 @@ async function astart(){
     achunks=[];_silentCount=0;_isRecording=true;
    }else if(_isRecording){
     _silentCount++;
-    if(_silentCount>3){sendIfComplete();_isRecording=false;}
+    if(_silentCount>1){sendIfComplete();_isRecording=false;}
     achunks=[];
    }else{achunks=[];}
   },500);
