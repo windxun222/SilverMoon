@@ -1,13 +1,9 @@
 ﻿/**
  * SilverMoon App - real-time visual conversation assistant.
- *
- * Modes:
- *   Push-to-talk: hold mic button, speak, release to send
- *   Auto: continuous listening, each utterance triggers query
- *   Vision: AI proactively describes what it sees every few seconds
  */
 import { startCamera, captureFrame, stopCamera } from "./camera.js";
 import { requestMic, startListening, stopListening, releaseMic, setCallbacks as setAudioCallbacks } from "./audio.js";
+import { isListening } from "./audio.js";
 import { connect, disconnect, send, setCallbacks as setWsCallbacks, isConnected } from "./websocket.js";
 
 const statusDot = document.getElementById("status-dot");
@@ -28,11 +24,12 @@ let speakerOn = true;
 let muted = false;
 let lastFrameCaptureTs = 0;
 let visionTimer = null;
+let _autoInterval = null;
 const FRAME_THROTTLE_MS = 1500;
 const VISION_INTERVAL_MS = 4000;
 
 function setStatus(state) {
-  const map = { connecting: ["", "连接中..."], connected: ["已连接", "已连接"], listening: ["listening", "聆听中..."], thinking: ["listening", "思考中..."], capturing: ["", "拍摄中..."], error: ["错误", "错误"] };
+  const map = { connecting: ["", "连接中..."], connected: ["connected", "已连接"], listening: ["listening", "聆听中..."], thinking: ["listening", "思考中..."], capturing: ["", "拍摄中..."], error: ["error", "错误"] };
   const [cls, text] = map[state] || ["", state];
   if (statusDot) statusDot.className = cls;
   if (statusText) statusText.textContent = text;
@@ -55,7 +52,7 @@ function showCameraIndicator(label, capturing) {
   if (!cameraIndicator) return;
   cameraIndicator.classList.remove("hidden");
   cameraIndicator.classList.toggle("capturing", !!capturing);
-  if (cameraIcon) cameraIcon.textContent = capturing ? "\u{1F4F8}" : "\u{1F4F7}";
+  if (cameraIcon) cameraIcon.textContent = capturing ? "\uD83D\uDCF8" : "\uD83D\uDCF7";
   const lbl = cameraIndicator.querySelector("#camera-label, span:last-child");
   if (lbl) lbl.textContent = label || "摄像头就绪";
 }
@@ -75,44 +72,60 @@ function sendQuery(text) {
 
 function sendVisionQuery() {
   if (!isConnected() || !visionMode) return;
-  setStatus("capturing");
   const frame = captureFrame();
-  if (!frame) { console.log("[SilverMoon] vision: no frame"); return; }
-    const msg = { type: "query", text: "用一句话描述你通过摄像头看到了什么。", image: frame };
+  if (!frame) return;
+  const msg = { type: "query", text: "用一句话描述你通过摄像头看到了什么。", image: frame };
   send(msg);
   lastFrameCaptureTs = Date.now();
   showCameraIndicator("拍摄中...", true);
 }
 
-function startVisionLoop() {
-  stopVisionLoop();
-  if (!visionMode) return;
-  showCameraIndicator("视觉已开启", false);
-  visionTimer = setInterval(() => { if (visionMode && isConnected()) sendVisionQuery(); }, VISION_INTERVAL_MS);
-}
+function startVisionLoop() { stopVisionLoop(); if (!visionMode) return; showCameraIndicator("视觉已开启", false); visionTimer = setInterval(() => { if (visionMode && isConnected()) sendVisionQuery(); }, VISION_INTERVAL_MS); }
 function stopVisionLoop() { if (visionTimer) { clearInterval(visionTimer); visionTimer = null; } }
 
 function toggleVision() {
-  visionMode = !visionMode;
-  btnVision.classList.toggle("on", visionMode);
-  if (visionMode) {
-    startVisionLoop();
-    sendVisionQuery();
-  } else {
-    stopVisionLoop();
-    if (cameraIndicator) cameraIndicator.classList.add("hidden");
-    setStatus(isConnected() ? "已连接" : "connecting");
-  }
+  visionMode = !visionMode; btnVision.classList.toggle("on", visionMode);
+  if (visionMode) { startVisionLoop(); sendVisionQuery(); }
+  else { stopVisionLoop(); if (cameraIndicator) cameraIndicator.classList.add("hidden"); setStatus(isConnected() ? "已连接" : "connecting"); }
 }
 
 function enterListeningMode() { if (muted) return; startListening(); setStatus("listening"); }
-function exitListeningMode() { stopListeningMode(); }
-function stopListeningMode() { stopListening(); setStatus(isConnected() ? "已连接" : "connecting"); }
-function toggleAuto() { autoMode = !autoMode; btnAuto.classList.toggle("on", autoMode); if (autoMode) startAutoLoop(); else stopAutoLoop(); }
+function exitListeningMode() { stopListening(); setStatus(isConnected() ? "已连接" : "connecting"); }
+
+// ===== AUTO MODE: simple periodic restart =====
+function toggleAuto() {
+  autoMode = !autoMode; btnAuto.classList.toggle("on", autoMode);
+  if (autoMode) {
+    enterListeningMode();
+    _autoInterval = setInterval(() => {
+      if (!autoMode || muted) return;
+      if (!isListening) enterListeningMode();
+    }, 3000);
+  } else {
+    if (_autoInterval) { clearInterval(_autoInterval); _autoInterval = null; }
+    exitListeningMode();
+  }
+}
+
 function toggleMute() {
   muted = !muted; btnMute.classList.toggle("on", muted);
   btnMute.querySelector(".btn-icon").textContent = muted ? "\uD83D\uDD0A" : "\uD83D\uDD07";
-  if (muted) stopAutoLoop(); else if (autoMode) startAutoLoop();
+  if (muted) {
+    exitListeningMode();
+    if (_autoInterval) { clearInterval(_autoInterval); _autoInterval = null; }
+  } else if (autoMode) {
+    enterListeningMode();
+    _autoInterval = setInterval(() => { if (autoMode && !muted && !isListening) enterListeningMode(); }, 3000);
+  }
+}
+
+function toggleSpeaker() {
+  speakerOn = !speakerOn;
+  if (btnSpeaker) {
+    btnSpeaker.classList.toggle("on", !speakerOn);
+    btnSpeaker.querySelector(".btn-icon").textContent = speakerOn ? "\uD83D\uDD0A" : "\uD83D\uDD07";
+  }
+  if (!speakerOn && window.speechSynthesis) window.speechSynthesis.cancel();
 }
 
 btnTalk.addEventListener("pointerdown", (e) => { e.preventDefault(); if (muted) return; btnTalk.classList.add("active"); enterListeningMode(); });
@@ -133,7 +146,6 @@ async function init() {
       setInterim("");
       if (text && text.trim()) { console.log("[SilverMoon] calling sendQuery"); sendQuery(text.trim()); }
       else console.log("[SilverMoon] onFinal: empty text");
-      
     },
     onState: (listening) => { setStatus(listening ? "listening" : (isConnected() ? "已连接" : "connecting")); },
   });
@@ -143,19 +155,14 @@ async function init() {
       if (data.type === "response") {
         const role = visionMode ? "vision" : "assistant";
         addMessage(role, data.text);
-        // Vision responses are silent to avoid spam; user queries get audio
-        const isVision = visionMode;
-        if (speakerOn && !isVision) speakText(data.text);
-        if (isConnected()) setStatus(visionMode ? "已连接" : "已连接");
-      } else if (data.type === "错误") {
+        if (speakerOn && !visionMode) speakText(data.text);
+        if (isConnected()) setStatus("已连接");
+      } else if (data.type === "error") {
         addMessage("system", "错误: " + data.detail);
-        setStatus("错误");
+        setStatus("error");
       }
     },
-    onConn: (conn) => {
-      setStatus(conn ? "已连接" : "connecting");
-      if (conn && visionMode) { startVisionLoop(); showCameraIndicator("视觉已开启", false); }
-    },
+    onConn: (conn) => { setStatus(conn ? "已连接" : "connecting"); if (conn && visionMode) { startVisionLoop(); } },
   });
   connect();
   try { await Promise.all([startCamera().catch(e => console.warn("Camera:", e)), requestMic().catch(e => console.warn("Mic:", e))]); }
@@ -165,93 +172,25 @@ async function init() {
   setInterval(() => { if (isConnected()) send({ type: "ping" }); }, 30000);
 }
 
-// --- Backend TTS (Windows SpeechSynthesizer, 100% reliable) ---
+// TTS via backend
 let _ttsAudio = null;
-
-function initTTS() {
-  _ttsAudio = document.createElement("audio");
-  _ttsAudio.style.display = "none";
-  document.body.appendChild(_ttsAudio);
-}
-
+function initTTS() { _ttsAudio = document.createElement("audio"); _ttsAudio.style.display = "none"; document.body.appendChild(_ttsAudio); }
 async function speakText(text) {
   if (!text) return;
   if (!_ttsAudio) initTTS();
   try {
-    const resp = await fetch("/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text })
-    });
-    if (!resp.ok) { console.warn("[SilverMoon] TTS HTTP error:", resp.status); return; }
+    const resp = await fetch("/tts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text }) });
+    if (!resp.ok) return;
     const blob = await resp.blob();
     const url = URL.createObjectURL(blob);
     _ttsAudio.src = url;
     _ttsAudio.onended = () => { URL.revokeObjectURL(url); if (isConnected()) setStatus("已连接"); };
     _ttsAudio.onerror = () => { URL.revokeObjectURL(url); if (isConnected()) setStatus("已连接"); };
     await _ttsAudio.play();
-    console.log("[SilverMoon] TTS playing:", text.substring(0, 30));
-  } catch(e) { console.warn("[SilverMoon] TTS failed:", e); }
+  } catch(e) { console.warn("TTS failed:", e); }
 }
 
-
-// ===== Auto mode: silence-detection based, independent of audio.js =====
-
-let _autoRec = null;
-let _autoTimer = null;
-let _autoSilenceTimer = null;
-let _autoLastText = "";
-let _autoLastTime = 0;
-let _autoSent = false;
-let _autoStopping = false;
-const AUTO_SILENCE_MS = 2000;
-const AUTO_MAX_DURATION_MS = 15000;
-
-function startAutoLoop() {
-  stopAutoLoop();
-  if (!autoMode || muted) return;
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { console.warn("[auto] SR unavailable"); return; }
-  _autoLastText = ""; _autoLastTime = Date.now(); _autoSent = false; _autoStopping = false;
-  const rec = new SR();
-  rec.continuous = false;
-  rec.interimResults = true;
-  rec.lang = "zh-CN";
-  rec.onresult = (e) => {
-    let t = ""; for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
-    if (t) { setInterim(t); _autoLastText = t; _autoLastTime = Date.now(); setStatus("listening"); }
-  };
-  rec.onerror = (e) => { console.warn("[auto] error:", e.error); scheduleAutoRestart(); };
-  rec.onend = () => {
-    if (_autoStopping) return;
-    if (_autoLastText && !_autoSent) { _autoSent = true; setInterim(""); sendQuery(_autoLastText); }
-    scheduleAutoRestart();
-  };
-  try { rec.start(); _autoRec = rec; setStatus("listening"); console.log("[auto] loop started"); }
-  catch(e) { console.warn("[auto] start failed:", e); scheduleAutoRestart(); }
-  _autoSilenceTimer = setInterval(() => {
-    if (_autoLastText && !_autoSent && Date.now() - _autoLastTime > AUTO_SILENCE_MS) {
-      _autoStopping = true;
-      _autoSent = true;
-      setInterim("");
-      sendQuery(_autoLastText);
-      if (_autoRec) { try { _autoRec.stop(); } catch(_) {} }
-      scheduleAutoRestart();
-    }
-  }, 500);
-  _autoTimer = setTimeout(() => { if (_autoRec) { try { _autoRec.stop(); } catch(_) {} } }, AUTO_MAX_DURATION_MS);
-}
-
-function scheduleAutoRestart() { stopAutoLoop(); if (autoMode && !muted) setTimeout(startAutoLoop, 1500); }
-
-function stopAutoLoop() {
-  _autoStopping = false;
-  if (_autoTimer) { clearTimeout(_autoTimer); _autoTimer = null; }
-  if (_autoSilenceTimer) { clearInterval(_autoSilenceTimer); _autoSilenceTimer = null; }
-  if (_autoRec) { try { _autoRec.stop(); } catch(_) {} _autoRec = null; }
-  _autoSent = false;
-}
-// Text input fallback
+// Text input
 (function() {
   const div = document.createElement("div");
   div.style.cssText = "display:flex;gap:8px;padding:4px 0";
@@ -264,14 +203,5 @@ function stopAutoLoop() {
   if (chatPanel) chatPanel.insertBefore(div, chatPanel.firstChild);
 })();
 
-window.addEventListener("beforeunload", () => { stopVisionLoop(); stopAutoLoop(); stopCamera(); releaseMic(); disconnect(); });
+window.addEventListener("beforeunload", () => { stopVisionLoop(); if (_autoInterval) { clearInterval(_autoInterval); _autoInterval = null; } stopCamera(); releaseMic(); disconnect(); });
 init();
-function toggleSpeaker() {
-  speakerOn = !speakerOn;
-  const btn = document.getElementById("btn-speaker");
-  if (btn) {
-    btn.classList.toggle("on", !speakerOn);
-    btn.querySelector(".btn-icon").textContent = speakerOn ? "\uD83D\uDD0A" : "\uD83D\uDD07";
-  }
-  if (!speakerOn && window.speechSynthesis) window.speechSynthesis.cancel();
-}
