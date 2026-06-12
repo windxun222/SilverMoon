@@ -3,7 +3,7 @@
   * handles send/receive, auto-reconnect.
   */
  
- const WS_URL = `ws://${location.host}/ws`;
+const WS_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
  const RECONNECT_DELAY_MS = 2000;
  const MAX_RECONNECT_DELAY_MS = 30000;
  
