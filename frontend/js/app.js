@@ -108,11 +108,11 @@ function toggleVision() {
 function enterListeningMode() { if (muted) return; startListening(); setStatus("listening"); }
 function exitListeningMode() { stopListeningMode(); }
 function stopListeningMode() { stopListening(); setStatus(isConnected() ? "已连接" : "connecting"); }
-function toggleAuto() { autoMode = !autoMode; btnAuto.classList.toggle("on", autoMode); autoMode ? enterListeningMode() : exitListeningMode(); }
+function toggleAuto() { autoMode = !autoMode; btnAuto.classList.toggle("on", autoMode); if (autoMode) startAutoLoop(); else stopAutoLoop(); }
 function toggleMute() {
   muted = !muted; btnMute.classList.toggle("on", muted);
   btnMute.querySelector(".btn-icon").textContent = muted ? "\uD83D\uDD0A" : "\uD83D\uDD07";
-  if (muted) exitListeningMode(); else if (autoMode) enterListeningMode();
+  if (muted) stopAutoLoop(); else if (autoMode) startAutoLoop();
 }
 
 btnTalk.addEventListener("pointerdown", (e) => { e.preventDefault(); if (muted) return; btnTalk.classList.add("active"); enterListeningMode(); });
@@ -133,7 +133,7 @@ async function init() {
       setInterim("");
       if (text && text.trim()) { console.log("[SilverMoon] calling sendQuery"); sendQuery(text.trim()); }
       else console.log("[SilverMoon] onFinal: empty text");
-      if (autoMode && !muted) setTimeout(() => { if (autoMode && !muted) enterListeningMode(); }, 1500);
+      
     },
     onState: (listening) => { setStatus(listening ? "listening" : (isConnected() ? "已连接" : "connecting")); },
   });
@@ -194,6 +194,58 @@ async function speakText(text) {
   } catch(e) { console.warn("[SilverMoon] TTS failed:", e); }
 }
 
+
+// ===== Auto mode: silence-detection based, independent of audio.js =====
+let _autoRec = null;
+let _autoTimer = null;
+let _autoSilenceTimer = null;
+let _autoLastText = "";
+let _autoLastTime = 0;
+let _autoSent = false;
+const AUTO_SILENCE_MS = 2000;
+const AUTO_MAX_DURATION_MS = 15000;
+
+function startAutoLoop() {
+  stopAutoLoop();
+  if (!autoMode || muted) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { console.warn("[auto] SpeechRecognition unavailable"); return; }
+  _autoLastText = ""; _autoLastTime = Date.now(); _autoSent = false;
+  const rec = new SR();
+  rec.continuous = false;
+  rec.interimResults = true;
+  rec.lang = "zh-CN";
+  rec.onresult = (e) => {
+    let t = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
+    if (t) { setInterim(t); _autoLastText = t; _autoLastTime = Date.now(); setStatus("listening"); }
+  };
+  rec.onerror = (e) => { console.warn("[auto] error:", e.error); scheduleAutoRestart(); };
+  rec.onend = () => {
+    if (_autoLastText && !_autoSent) { _autoSent = true; setInterim(""); sendQuery(_autoLastText); }
+    scheduleAutoRestart();
+  };
+  try { rec.start(); _autoRec = rec; setStatus("listening"); console.log("[auto] loop started"); }
+  catch(e) { console.warn("[auto] start failed:", e); scheduleAutoRestart(); }
+  // Silence timer: stop recognition if no speech for AUTO_SILENCE_MS
+  _autoSilenceTimer = setInterval(() => {
+    if (_autoLastText && !_autoSent && Date.now() - _autoLastTime > AUTO_SILENCE_MS) {
+      if (_autoRec) { try { _autoRec.stop(); } catch(_) {} }
+    }
+  }, 500);
+  // Max duration: force restart to prevent stuck state
+  _autoTimer = setTimeout(() => { if (_autoRec) { try { _autoRec.stop(); } catch(_) {} } }, AUTO_MAX_DURATION_MS);
+}
+
+function scheduleAutoRestart() { stopAutoLoop(); if (autoMode && !muted) setTimeout(startAutoLoop, 1500); }
+
+function stopAutoLoop() {
+  if (_autoTimer) { clearTimeout(_autoTimer); _autoTimer = null; }
+  if (_autoSilenceTimer) { clearInterval(_autoSilenceTimer); _autoSilenceTimer = null; }
+  if (_autoRec) { try { _autoRec.stop(); } catch(_) {} _autoRec = null; }
+  _autoSent = false;
+}
+
 // Text input fallback
 (function() {
   const div = document.createElement("div");
@@ -207,7 +259,7 @@ async function speakText(text) {
   if (chatPanel) chatPanel.insertBefore(div, chatPanel.firstChild);
 })();
 
-window.addEventListener("beforeunload", () => { stopVisionLoop(); stopCamera(); releaseMic(); disconnect(); });
+window.addEventListener("beforeunload", () => { stopVisionLoop(); stopAutoLoop(); stopCamera(); releaseMic(); disconnect(); });
 init();
 function toggleSpeaker() {
   speakerOn = !speakerOn;
