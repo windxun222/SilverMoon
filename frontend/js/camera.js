@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Camera + Mic module - opens camera AND microphone together.
  */
 const MAX_FRAME_DIM = 640;

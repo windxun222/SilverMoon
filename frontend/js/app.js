@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SilverMoon - minimal working version.
  */
 import { connect, disconnect, send, setCallbacks as setWsCallbacks, isConnected } from "./websocket.js";

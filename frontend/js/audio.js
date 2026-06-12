@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Audio module - mic access + Web Speech API STT.
  */
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
