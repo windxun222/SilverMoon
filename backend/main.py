@@ -20,6 +20,18 @@ logger = logging.getLogger("silvermoon")
 app = FastAPI(title="SilverMoon", version="0.1.0")
 ollama = OllamaClient()
 
+
+# Whisper model singleton
+_whisper_model = None
+def _get_whisper():
+    global _whisper_model
+    if _whisper_model is None:
+        from faster_whisper import WhisperModel
+        import os as _os
+        _os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+        _whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+    return _whisper_model
+
 @app.get("/health")
 async def health():
   return {"status": "ok", "version": "0.1.0", "model": OLLAMA_MODEL}
@@ -30,24 +42,26 @@ async def root():
 
 @app.post("/asr")
 async def asr_endpoint(request: Request):
-  import subprocess, tempfile
-  data = await request.body()
-  if not data or len(data) < 1000:
-    return {"text": ""}
-  ps = str(_PROJECT_ROOT / "backend" / "asr.ps1")
-  wav = ""
-  try:
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as t:
-      t.write(data)
-      wav = t.name
-    r = subprocess.run(["powershell", "-EP", "Bypass", "-File", ps, "-WavFile", wav], timeout=10, capture_output=True, text=True, encoding="utf-8", errors="replace")
-    return {"text": r.stdout.strip()}
-  except Exception as e:
-    return {"text": ""}
-  finally:
-    if wav and os.path.exists(wav):
-      try: os.unlink(wav)
-      except: pass
+    import tempfile, os as _os
+    data = await request.body()
+    if not data or len(data) < 1000:
+        return {"text": ""}
+    wav = ""
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as t:
+            t.write(data)
+            wav = t.name
+        model = _get_whisper()
+        segments, _ = model.transcribe(wav, language="zh", beam_size=5)
+        text = " ".join(s.text.strip() for s in segments if s.text.strip())
+        return {"text": text}
+    except Exception as e:
+        logger.warning("Whisper ASR failed: %s", e)
+        return {"text": ""}
+    finally:
+        if wav and _os.path.exists(wav):
+            try: _os.unlink(wav)
+            except: pass
 
 @app.post("/tts")
 async def tts_endpoint(request: Request):
