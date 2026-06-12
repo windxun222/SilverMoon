@@ -1,0 +1,64 @@
+ <!DOCTYPE html>
+ <html lang="zh-CN">
+ <head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+ <meta name="apple-mobile-web-app-capable" content="yes">
+ <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+ <title>SilverMoon – AI Vision Assistant</title>
+ <link rel="stylesheet" href="/static/css/style.css">
+ </head>
+ <body>
+ 
+ <!-- ── Camera preview ── -->
+ <div id="camera-container">
+   <video id="camera-video" autoplay playsinline muted></video>
+   <canvas id="camera-canvas" hidden></canvas>
+   <div id="camera-overlay">
+     <div id="status-badge">
+       <span id="status-dot"></span>
+       <span id="status-text">Initializing...</span>
+     </div>
+   </div>
+ </div>
+ 
+ <!-- ── Chat panel ── -->
+ <div id="chat-panel">
+   <div id="chat-messages">
+     <div class="chat-msg system-msg">👋 SilverMoon is ready. Point your camera and speak.</div>
+   </div>
+ 
+   <div id="chat-controls">
+     <!-- Interim speech result -->
+     <div id="interim-text" class="interim-text"></div>
+ 
+     <div id="button-row">
+       <!-- Push-to-talk button -->
+       <button id="btn-talk" class="control-btn talk-btn" title="Hold to speak">
+         <span class="btn-icon">🎤</span>
+         <span class="btn-label">Hold to Talk</span>
+       </button>
+ 
+       <!-- Auto mode toggle -->
+       <button id="btn-auto" class="control-btn toggle-btn" title="Auto mode: listens continuously">
+         <span class="btn-icon">🔄</span>
+         <span class="btn-label">Auto</span>
+       </button>
+ 
+       <!-- Mute toggle -->
+       <button id="btn-mute" class="control-btn toggle-btn" title="Mute microphone">
+         <span class="btn-icon">🔇</span>
+         <span class="btn-label">Mute</span>
+       </button>
+     </div>
+   </div>
+ </div>
+ 
+ <!-- ── Scripts ── -->
+ <script type="module" src="/static/js/camera.js"></script>
+ <script type="module" src="/static/js/audio.js"></script>
+ <script type="module" src="/static/js/websocket.js"></script>
+ <script type="module" src="/static/js/app.js"></script>
+ 
+ </body>
+ </html>

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.py[cod]
+ *.egg-info/
+ venv/
+ .venv/
+ 
+ # Node / frontend
+ node_modules/
+ 
+ # Environment
+ .env
+ .env.local
+ 
+ # OS
+ .DS_Store
+ Thumbs.db
+ 
+ # IDE
+ .vscode/
+ .idea/
+ 
+# Runtime
+*.log
+*.pem
+*.pfx
+uploads/
+server_*.log
