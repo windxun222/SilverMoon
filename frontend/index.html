@@ -144,9 +144,9 @@ async function playTTS(){
  while(_tqueue.length&&gen===_ttsGen){var t=_tqueue.shift();if(!t||!t.trim())continue;var a;
   if(_pre){a=_pre;_pre=null}else{if(gen!==_ttsGen)break;try{var r=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})});if(!r.ok)continue;var b=await r.blob(),u=URL.createObjectURL(b);a=new Audio(u);a._u=u}catch(e){continue}}
   if(_tqueue.length&&gen===_ttsGen){var nt=_tqueue[0];_preTTS(nt).then(function(x){_pre=x})}
-  if(gen!==_ttsGen)break;_curA=a;try{await a.play();await new Promise(function(res,rej){a.onended=res;a.onerror=res})}catch(e){}finally{_curA=null;if(a._u)try{URL.revokeObjectURL(a._u)}catch(e){}}
+  if(gen!==_ttsGen)break;_curA=a;try{await a.play();await new Promise(function(res,rej){a.onended=res;a.onerror=res})}catch(e){}finally{if(gen===_ttsGen)_curA=null;if(a._u)try{URL.revokeObjectURL(a._u)}catch(e){}}
  }
- _tplaying=false;_curA=null;
+ if(gen===_ttsGen)_tplaying=false;_curA=null;
 }
 
 function _preTTS(t){return fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})}).then(function(r){if(!r.ok)throw 0;return r.blob()}).then(function(b){var u=URL.createObjectURL(b);var a=new Audio(u);a._u=u;return a})}
