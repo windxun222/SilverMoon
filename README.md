@@ -5,7 +5,7 @@
 银月是一个实时视觉语言助手。用手机打开网页，自然说话或打字，本地运行的
 [Ollama](https://ollama.com) **minicpm-v4.5:8b** 模型就能看到你的摄像头画面，
 听到你的声音，并用自然的中文语音回复你。
-
+演示视频：https://www.bilibili.com/video/BV1fgJH6CEKe
 ---
 
 ## 🏗 系统架构
