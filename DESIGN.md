@@ -192,7 +192,6 @@ SilverMoon/
 | 语音合成 | `dd23845`→`1c3fc7c`→`933d725` | 从 Windows TTS 演进到 edge-tts 晓晓 +20% 语速 |
 | Auto 模式 | `6e37ac5`→`de6fbbe` | VAD 分句 + 自动附带摄像头截图 |
 | UI 简化 | `eb214e1` | 精简为 Auto + Mute + 文本输入 |
-| 上下文 | `55e8a64`→`1461ca8` | 上下文扩展至 20 轮后回退到 8 轮 |
 | 流式输出 | `c798c58` | Ollama stream:true + stream_token/stream_end |
 | TTS 预缓冲 | `4e532dc` | _preTTS() 后台预取，消除句间停顿 |
 | 打断机制 | `e189060` | _ttsGen 代际计数器 + gen 守卫修复 |
